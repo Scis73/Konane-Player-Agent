@@ -1,3 +1,5 @@
+import sys
+
 # Game board with a few random pieces taken off for testing
 full_board = 0xDEDF4FE7FD8FDCDF
 
@@ -31,6 +33,18 @@ columnF = columnA >> 5
 columnG = columnA >> 6
 columnH = columnA >> 7
 
+# Square names organized by their index number on bitboard
+# Order is weird, could be fixed to have A1 first maybe
+squares = ("H1", "G1", "F1", "E1", "D1", "C1", "B1", "A1", \
+           "H2", "G2", "F2", "E2", "D2", "C2", "B2", "A2", \
+           "H3", "G3", "F3", "E3", "D3", "C3", "B3", "A3", \
+           "H4", "G4", "F4", "E4", "D4", "C4", "B4", "A4", \
+           "H5", "G5", "F5", "E5", "D5", "C5", "B5", "A5", \
+           "H6", "G6", "F6", "E6", "D6", "C6", "B6", "A6", \
+           "H7", "G7", "F7", "E7", "D7", "C7", "B7", "A7", \
+           "H8", "G8", "F8", "E8", "D8", "C8", "B8", "A8")
+
+# ============ print functions for debugging
 
 def print_board(board):
     # Prints 8x8 board using just 1s and 0s
@@ -69,12 +83,73 @@ def print_board_with_colours(board):
     print("------------------")
     return
 
+# ================== Helper functions
 
-def right_attack(board, colour):
-    # Finds all pieces of moving left to right for given board and colour
+def parse_args(argv):
+    if (len(argv) != 3):
+        print("Usage: python3 file colour")
+        return
+
+    try:
+        with open(argv[1]) as file:
+            board = ""
+            for line in file:
+                board = board + line.strip()
+    except ValueError:
+        print("Couldn't open file.")
+        sys.exit(1)
+
+    assert argv[2] == "W" or "B", "Second argument must be 'W' or 'B'"
+    colour = argv[2]
+
+    return board, colour
+
+
+def string_to_bitboard(string):
+    # Convert string representation of board ("BWBWBW...") to bitboard
+    bitboard = 0
+    rev_string = string[::-1]
+
+    # Converting using positional method, probably a more efficient way to do this
+    for i in range(len(rev_string)):
+        if (rev_string[i] == "B" or rev_string[i] == "W"):
+            print(i)
+            bitboard = bitboard + (2**i)
+    print(bitboard)
+    return bitboard
+
+def lsb(board):
+    # Get index of least significat 1 bit on board
+    index = 0
+
+    while (board % 2 == 0):
+        board = board >> 1
+        index += 1
+
+    return index
+
+def square_bb(s):
+    # Make bitboard containing only piece in square of index s
+    return 1 << s
+
+def make_move(board, start, direction, jumps):
+    # Makes board with new state after a move
+    # start is index of piece performing move
+    # directions: left = 1, right = -1, up = 8, down = -8
+
+    # Make new board containing all squares changed by move (start and end pos of attacker, captured pieces)
+    changes = square_bb(start) | square_bb(start + (direction * jumps * 2))
+    for i in range(jumps):
+        changes |= square_bb(start + direction + (direction * i * 2))
+
+    # XOR original board with changes to remove captured pieces and attacker from start pos, add attacker to end pos
+    return board ^ changes
+
+
+def right_attacks(board, colour):
+    # Finds all pieces capable of moving left to right for given board and colour
     if (colour):
         attackers = board & black_squares
-
     else:
         attackers = board & white_squares
        
@@ -87,8 +162,18 @@ def right_attack(board, colour):
 
     return attackers
 
-black_attacks = right_attack(full_board, 1)
-white_attacks = right_attack(full_board, 0)
-print_board_with_colours(full_board)
-print_board_with_colours(black_attacks)
-print_board_with_colours(white_attacks)
+#black_attacks = right_attack(full_board, 1)
+#white_attacks = right_attack(full_board, 0)
+#print_board_with_colours(full_board)
+#print_board_with_colours(black_attacks)
+#print_board_with_colours(white_attacks)
+
+def main():
+   board, colour = parse_args(sys.argv)
+   print(board)
+   bitboard = string_to_bitboard(board)
+   print_board_with_colours(bitboard)
+   print(squares[lsb(bitboard)])
+
+if __name__ == "__main__":
+    main()
