@@ -263,8 +263,24 @@ def multi_jumps(board_self, board_opp, start_idx, shift, direction):
             
     return valid_landings
 
+# Tests if the initial if board is valid by checking if there are any empty squares, since the initial board should be full
+def is_initial_board(board_string):
+    # Returns True if there are no empty squares
+    return "O" not in board_string
+
+# Returns list of valid opening moves, which are just the 4 pieces in the middle of the board that can be removed
+def get_initial_moves():
+    # Allowed opening removals
+    return ["D5", "E4", "E5", "D4"]
+
 def main():
    board, colour = parse_args(sys.argv)
+
+   if is_initial_board(board):
+      moves = get_initial_moves()
+      print(moves[0])   # choose first opening move for now
+      return
+
    print(board)
    bitboard = string_to_bitboard(board, colour)
    print_board_with_colours(bitboard)
