@@ -105,7 +105,7 @@ def print_board_with_colours(board):
 def parse_args(argv):
     if (len(argv) != 3):
         print("Usage: python3 file colour")
-        return
+        sys.exit(1)
 
     try:
         with open(argv[1]) as file:
