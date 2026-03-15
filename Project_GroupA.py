@@ -35,16 +35,15 @@ columnH = columnA >> 7
 
 # Square names organized by their index number on bitboard
 # Order is weird, could be fixed to have A1 first maybe
-""" squares = ("H1", "G1", "F1", "E1", "D1", "C1", "B1", "A1", \
+squares = ("H1", "G1", "F1", "E1", "D1", "C1", "B1", "A1", \
            "H2", "G2", "F2", "E2", "D2", "C2", "B2", "A2", \
            "H3", "G3", "F3", "E3", "D3", "C3", "B3", "A3", \
            "H4", "G4", "F4", "E4", "D4", "C4", "B4", "A4", \
            "H5", "G5", "F5", "E5", "D5", "C5", "B5", "A5", \
            "H6", "G6", "F6", "E6", "D6", "C6", "B6", "A6", \
            "H7", "G7", "F7", "E7", "D7", "C7", "B7", "A7", \
-           "H8", "G8", "F8", "E8", "D8", "C8", "B8", "A8") """
-
-squares = (
+           "H8", "G8", "F8", "E8", "D8", "C8", "B8", "A8")
+"""squares = (
     "A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1",
     "A2", "B2", "C2", "D2", "E2", "F2", "G2", "H2",
     "A3", "B3", "C3", "D3", "E3", "F3", "G3", "H3",
@@ -52,8 +51,7 @@ squares = (
     "A5", "B5", "C5", "D5", "E5", "F5", "G5", "H5",
     "A6", "B6", "C6", "D6", "E6", "F6", "G6", "H6",
     "A7", "B7", "C7", "D7", "E7", "F7", "G7", "H7",
-    "A8", "B8", "C8", "D8", "E8", "F8", "G8", "H8"
-)
+    "A8", "B8", "C8", "D8", "E8", "F8", "G8", "H8")"""
 
 # ============ print functions for debugging
 
@@ -99,14 +97,14 @@ def print_board_with_colours(board):
 def parse_args(argv):
     if (len(argv) != 3):
         print("Usage: python3 file colour")
-        return
+        return sys.exit(1)
 
     try:
         with open(argv[1]) as file:
             board = ""
             for line in file:
                 board = board + line.strip()
-    except ValueError:
+    except OSError:
         print("Couldn't open file.")
         sys.exit(1)
 
@@ -173,7 +171,7 @@ def right_attacks(board, colour):
     attackers &= ~(columnG | columnH)
     # Checks if there is an empty space 2 spaces away for attacker to move into
     # and checks if there is a piece next to attacker for it to attack
-    attackers = (attackers & ~(board << 2)) & (attackers & (board << 1)) 
+    attackers = (attackers & (board << 1)) & ~(board <<2) 
 
     return attackers
 
@@ -196,7 +194,7 @@ def left_attacks(board, colour):
     attackers &= ~(columnA |columnB)
     # Checks if there is an empty space 2 spaces away from the left
     # and checks if there is a piece next to attacker for it to attack
-    attackers = (attackers & ~(board >> 2)) & (attackers & (board >> 1)) 
+    attackers = attackers & (board >> 1) & ~(board >> 2)
 
     return attackers
 
@@ -210,12 +208,10 @@ def up_attacks(board, colour):
        
     # Filter out all attackers from row7 and 8 since there will never be a valid attack in this direction
     # Prevents attacks that try to wrap around board
-    attackers &= ~(row7 |row8)
-
+    attackers &= ~(row7 | row8)
     # Checks if there is an empty space 2 spaces up and opponent 1 up
     # and checks if there is a piece next to attacker for it to attack
-    attackers = (attackers & ~(board <<16)) & (attackers & (board << 8)) 
-
+    attackers = attackers & (board << 8) & ~(board << 16)
     return attackers
 
 def down_attacks(board, colour):
@@ -227,10 +223,10 @@ def down_attacks(board, colour):
        
     # Filter out all attackers from row1 and row8 since there will never be a valid attack in this direction
     # Prevents attacks that try to wrap around board
-    attackers &= ~(row1 |row2)
+    attackers &= ~(row1 | row2)
     # Checks if there is an empty space 2 spaces down
     # and checks if there is a piece next to attacker for it to attack
-    attackers = (attackers & ~(board >>16)) & (attackers & (board >>8)) 
+    attackers = (attackers & (board >> 8)) &  ~(board >>8)
 
     return attackers
 
@@ -278,23 +274,24 @@ def main():
    print(f"White stone pos: {squares[36]} ")
    print("Expected Jump: F5 -> D5 (Left attack)")
    
+   #Test Multi-jumps
+   board_self = (1<<37) #Black piece
+   board_opp = (1 <<36) #white piece
+   shift = -1
+   landings = multi_jumps(board_self, board_opp, 37, shift, "left")
+   print (f"Multi-jump landing index from F5 is: {landings}")
+   if 35 in landings:
+       print(f"Sucessful: Landinf square {squares[35]}")
+
+
    #Test left attack
    black_left_attackers = left_attacks(test_board, 1)
    if (black_left_attackers >> 37) & 1:
-    print("SUCCESS: F5 was a left-attacker!")
+       print("SUCCESS: F5 was a left-attacker!")
    else:
-    print("FAILURE: F5 was NOT an attacker.")
+       print("FAILURE: F5 was NOT an attacker.")
 
-    #Test Multi-Jumps
-    board_self = (1 << 37) # Black pieces
-    board_opp = (1 << 36)  # White pieces
-    shift = -1             # Left shift
 
-    landings = multi_jumps(board_self, board_opp, 37, shift, "left")
-
-    print(f"Multi-jump landing index from F5: {landings}")
-    if 35 in landings:
-        print(f"SUCCESS: Landing square {squares[35]}")
 
 if __name__ == "__main__":
     main()
