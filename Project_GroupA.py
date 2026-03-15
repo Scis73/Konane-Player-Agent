@@ -1,3 +1,4 @@
+#! /usr/bin/env python3
 import sys
 
 # Game board with a few random pieces taken off for testing
@@ -166,6 +167,12 @@ class Move:
         # Number of jumps performed in move
         self.jumps = jumps
 
+    def print_move(self):
+        if self.jumps == 0:
+            print(squares[self.pc_ind])
+        else:
+            print(f"{squares[self.pc_ind]}-{squares[self.pc_ind + (self.shift*self.jumps*2)]}")
+
 def get_all_moves(board, colour):
     # Generate all moves for given colour and stores them in a list
     moves = []
@@ -196,14 +203,18 @@ def get_all_moves(board, colour):
 
         # Remove attacker from attackers
         attackers ^= square_bb(attacker)
-
+    
     return moves
 
 
-def make_move(board, start, direction, jumps):
+def make_move(board, start, direction=0, jumps=0):
     # Makes board with new state after a move
     # start is index of piece performing move
     # directions: left = 1, right = -1, up = 8, down = -8
+
+    # if jumps is 0, assume initial removal and remove just one piece
+    if jumps == 0:
+        return board ^ square_bb(start)
 
     # Make new board containing all squares changed by move (start and end pos of attacker, captured pieces)
     changes = square_bb(start) | square_bb(start + (direction * jumps * 2))
@@ -259,7 +270,7 @@ def up_attacks(board, colour):
     attackers &= ~(row7 |row8)
     # Checks if there is an empty space 2 spaces up and opponent 1 up
     # and checks if there is a piece next to attacker for it to attack
-    attackers = (attackers & ~(board <<16)) & (attackers & (board << 8)) 
+    attackers = (attackers & ~(board >>16)) & (attackers & (board >> 8)) 
 
     return attackers
 
@@ -275,7 +286,7 @@ def down_attacks(board, colour):
     attackers &= ~(row1 |row2)
     # Checks if there is an empty space 2 spaces down
     # and checks if there is a piece next to attacker for it to attack
-    attackers = (attackers & ~(board >>16)) & (attackers & (board >>8)) 
+    attackers = (attackers & ~(board <<16)) & (attackers & (board <<8)) 
 
     return attackers
 
@@ -323,15 +334,50 @@ def get_initial_moves():
 
 def main():
     board, colour = parse_args(sys.argv)
-    print(board)
+    #print(board)
+    bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, "W")
     if is_initial_board(board):
         moves = get_initial_moves()
+        bitboard = make_move(bitboard, squares.index(moves[0]))
         print(moves[0])   # choose first opening move for now
-        return
+        #return
 
-    bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, "W")
-    print_board_with_colours(bitboard)
-    print(squares[lsb(bitboard)])
+    while True:
+        inp = input("")
+        start = squares.index(inp[0:2])
+        if (len(inp) > 2):
+            end = squares.index(inp[3:])
+            if start > end:
+                # if start higher, move is either down or left
+                if ((start - end) >= 16):
+                    # if diff >= 16, move is down
+                    jumps = (start-end) // 16
+                    bitboard = make_move(bitboard, start, -8, jumps)
+                else:
+                    jumps = (start-end) // 2
+                    bitboard = make_move(bitboard, start, -1, jumps)
+            else:
+                # if start lower, move is either up or right
+                if ((end - start) >= 16):
+                    # if diff >= 16, move is down
+                    jumps = (end-start) // 16
+                    bitboard = make_move(bitboard, start, 8, jumps)
+                else:
+                    jumps = (end-start) // 2
+                    bitboard = make_move(bitboard, start, 1, jumps)
+
+        else:
+            bitboard = make_move(bitboard, start)
+
+        moves = get_all_moves(bitboard, "B")
+        if moves:
+            bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
+            moves[0].print_move()
+        else:
+            print()
+            break
+    #print_board_with_colours(bitboard)
+    #print(squares[lsb(bitboard)])
 
     """
     test_board = (1 << 37) | (1 << 36) 
@@ -357,7 +403,7 @@ def main():
     if 35 in landings:
         print(f"SUCCESS: Landing square {squares[35]}")
     """
-    print("Testing get_all_moves")
+    '''print("Testing get_all_moves")
     test_board_2 = square_bb(squares.index("D5")) | square_bb(squares.index("D4")) | square_bb(squares.index("D6"))
     test_board_2 |= square_bb(squares.index("C5")) | square_bb(squares.index("E5"))
     print_board_with_colours(test_board_2)
@@ -366,9 +412,9 @@ def main():
     if len(moves) == 4: 
         print("Success?: Correct number of moves found, double check list to verify moves are correct")
         for move in moves:
-            print(squares[move.pc_ind], move.shift, move.jumps)
+            move.print_move()
     else:
         print(f"Failure: Should find 4 moves, found {len(moves)}")
-
+    '''
 if __name__ == "__main__":
     main()
