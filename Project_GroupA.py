@@ -55,7 +55,7 @@ squares = (
     "A5", "B5", "C5", "D5", "E5", "F5", "G5", "H5",
     "A6", "B6", "C6", "D6", "E6", "F6", "G6", "H6",
     "A7", "B7", "C7", "D7", "E7", "F7", "G7", "H7",
-    "A8", "B8", "C8", "D8", "E8", "F8", "G8", "H8")"""
+    "A8", "B8", "C8", "D8", "E8", "F8", "G8", "H8")
 
 # ============ print functions for debugging
 
@@ -331,49 +331,84 @@ def get_initial_moves():
     # Allowed opening removals
     return ["D5", "E4", "E5", "D4"]
 
+
+
+"""Minimax"""
+
+
+
+
+
+
+
+
 def main():
     board, colour = parse_args(sys.argv)
     #print(board)
     bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, "W")
+
+    print_board_with_colours(bitboard)
+
+    player_colour = colour
+    if colour == "B":                          # plays whichever colour was passed in
+        agent_colour = "W"
+    else: 
+        agent_colour= "B" 
+    current_turn = "B"  #black always play first
+
+
     if is_initial_board(board):
         moves = get_initial_moves()
         bitboard = make_move(bitboard, squares.index(moves[0]))
         print(moves[0])   # choose first opening move for now
         #return
+        print_board_with_colours(bitboard)
 
     while True:
-        inp = input("")
-        start = squares.index(inp[0:2])
-        if (len(inp) > 2):
-            end = squares.index(inp[3:])
-            if start > end:
-                # if start higher, move is either down or left
-                if ((start - end) >= 16):
-                    # if diff >= 16, move is down
-                    jumps = (start-end) // 16
-                    bitboard = make_move(bitboard, start, -8, jumps)
+        if current_turn == agent_colour:
+            moves=get_all_moves(bitboard,agent_colour)
+            if not moves:
+                print("No more move available!")
+                break
+            bitboard = make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
+            moves[0].print_move()
+            print_board_with_colours(bitboard)
+        else: 
+            inp = input("")
+            start = squares.index(inp[0:2])
+            if (len(inp) > 2):
+                end = squares.index(inp[3:])
+                if start > end:
+                    # if start higher, move is either down or left
+                    if ((start - end) >= 16):
+                        # if diff >= 16, move is down
+                        jumps = (start-end) // 16
+                        bitboard = make_move(bitboard, start, -8, jumps)
+                    else:
+                        jumps = (start-end) // 2
+                        bitboard = make_move(bitboard, start, -1, jumps)
                 else:
-                    jumps = (start-end) // 2
-                    bitboard = make_move(bitboard, start, -1, jumps)
-            else:
-                # if start lower, move is either up or right
-                if ((end - start) >= 16):
-                    # if diff >= 16, move is down
-                    jumps = (end-start) // 16
-                    bitboard = make_move(bitboard, start, 8, jumps)
-                else:
-                    jumps = (end-start) // 2
-                    bitboard = make_move(bitboard, start, 1, jumps)
+                    # if start lower, move is either up or right
+                    if ((end - start) >= 16):
+                        # if diff >= 16, move is down
+                        jumps = (end-start) // 16
+                        bitboard = make_move(bitboard, start, 8, jumps)
+                    else:
+                        jumps = (end-start) // 2
+                        bitboard = make_move(bitboard, start, 1, jumps)
 
-        else:
-            bitboard = make_move(bitboard, start)
+            else:
+                bitboard = make_move(bitboard, start)
+
+        print_board_with_colours(bitboard)
 
         moves = get_all_moves(bitboard, "B")
         if moves:
             bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
             moves[0].print_move()
+            print_board_with_colours(bitboard)
         else:
-            print()
+            print("No moves available.")
             break
     #print_board_with_colours(bitboard)
     #print(squares[lsb(bitboard)])
