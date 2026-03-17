@@ -1,9 +1,7 @@
 #! /usr/bin/env python3
 import sys
 
-# Game board with a few random pieces taken off for testing
-full_board = 0xDEDF4FE7FD8FDCDF
-
+colours = ["B", "W"]
 # Location of all squares that can have white pieces
 # Can get all black pieces on a board by using &
 white_squares = 0xAA55AA55AA55AA55
@@ -323,21 +321,33 @@ def multi_jumps(board_self, board_opp, start_idx, shift):
 
 # Tests if the initial if board is valid by checking if there are any empty squares, since the initial board should be full
 # This helps for first player, but second player also has to do initial move after 1 piece missing
+'''
 def is_initial_board(board_string):
     # Returns True if there are no empty squares
     return "O" not in board_string
+'''
+def is_initial_board(board):
+    # Returns True if there are no empty squares or only 1 empty square
+    full_board = 0xFFFFFFFFFFFFFFFF
+    boards = set() 
+    boards.add(full_board)
+    boards.add(full_board ^ square_bb(squares.index("D5")))
+    boards.add(full_board ^ square_bb(squares.index("E4")))
+    return board in boards
 
 # Returns list of valid opening moves, which are just the 4 pieces in the middle of the board that can be removed
-def get_initial_moves():
+def get_initial_moves(colour):
     # Allowed opening removals
-    return ["D5", "E4", "E5", "D4"]
+    if colour == "B":
+        return ["D5", "E4"]
+    else:
+        return ["E5", "D4"]
 
-def main():
-    board, colour = parse_args(sys.argv)
-    #print(board)
-    bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, "W")
-    if is_initial_board(board):
-        moves = get_initial_moves()
+def play_game(board, colour):
+    # Automatically plays game vs other agents using the drivercheck.pl script
+    bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, colours[(colours.index(colour)+1) % 2])
+    if is_initial_board(bitboard):
+        moves = get_initial_moves(colour)
         bitboard = make_move(bitboard, squares.index(moves[0]))
         print(moves[0])   # choose first opening move for now
         #return
@@ -369,13 +379,18 @@ def main():
         else:
             bitboard = make_move(bitboard, start)
 
-        moves = get_all_moves(bitboard, "B")
+        moves = get_all_moves(bitboard, colour)
         if moves:
             bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
             moves[0].print_move()
         else:
             print()
             break
+
+def main():
+    board, colour = parse_args(sys.argv)
+    play_game(board,colour)
+    #print(board)
     #print_board_with_colours(bitboard)
     #print(squares[lsb(bitboard)])
 
