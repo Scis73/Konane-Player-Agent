@@ -387,9 +387,33 @@ def play_game(board, colour):
             print()
             break
 
+def demo(board, colour):
+    # For lab demo, supposed to output 1 move for each player
+    bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, colours[(colours.index(colour)+1) % 2])
+    for i in range(2):
+        if is_initial_board(bitboard):
+            moves = get_initial_moves(colour)
+            bitboard = make_move(bitboard, squares.index(moves[0]))
+            print(moves[0])   # choose first opening move for now
+        else:
+            moves = get_all_moves(bitboard, colour)
+            if(moves):
+                moves[0].print_move()
+
+                # Not sure if supposed to get both moves from same board or get second move from updated board
+                # Use this if we need to update board inbetween moves
+                #bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
+            else:
+                print("No moves found for", colour)
+            
+        colour = colours[(colours.index(colour)+1) % 2]
+
+
+
 def main():
     board, colour = parse_args(sys.argv)
-    play_game(board,colour)
+    #play_game(board,colour)
+    demo(board, colour)
     #print(board)
     #print_board_with_colours(bitboard)
     #print(squares[lsb(bitboard)])
