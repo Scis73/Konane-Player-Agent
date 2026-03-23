@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 import sys
+import random
 
 colours = ["B", "W"]
 # Location of all squares that can have white pieces
@@ -23,14 +24,14 @@ row8 = row1 << 8*7
 
 # Squares in each column starting from left
 # columnA = 0b1000000010000000100000001000000010000000100000001000000010000000
-columnA = 0x8080808080808080
-columnB = columnA >> 1
-columnC = columnA >> 2
-columnD = columnA >> 3
-columnE = columnA >> 4
-columnF = columnA >> 5
-columnG = columnA >> 6
-columnH = columnA >> 7
+columnA = 0x0101010101010101
+columnB = columnA << 1
+columnC = columnA << 2
+columnD = columnA << 3
+columnE = columnA << 4
+columnF = columnA << 5
+columnG = columnA << 6
+columnH = columnA << 7
 
 # Square names organized by their index number on bitboard
 # Order is weird, could be fixed to have A1 first maybe
@@ -321,11 +322,11 @@ def multi_jumps(board_self, board_opp, start_idx, shift):
 
 # Tests if the initial if board is valid by checking if there are any empty squares, since the initial board should be full
 # This helps for first player, but second player also has to do initial move after 1 piece missing
-'''
+"""
 def is_initial_board(board_string):
     # Returns True if there are no empty squares
     return "O" not in board_string
-'''
+"""
 def is_initial_board(board):
     # Returns True if there are no empty squares or only 1 empty square
     full_board = 0xFFFFFFFFFFFFFFFF
@@ -431,5 +432,92 @@ def main():
     else:
         print(f"Failure: Should find 4 moves, found {len(moves)}")
     '''
-if __name__ == "__main__":
-    main()
+#if __name__ == "__main__":
+ #   main()
+
+# Testing new stuff
+
+class TranspositionTable():
+    def __init__(self, size=2**17):
+        self.size = size
+        self.table = [0] * self.size
+
+class ZobristNumbers():
+    def __init__(self):
+        min_rand = 0
+        max_rand = 2**64
+        self.rand_squares = [0] * 64
+        for i in range(len(self.rand_squares)):
+            self.rand_squares[i] = random.randint(min_rand, max_rand)
+        self.rand_player = random.randint(min_rand, max_rand)
+
+class BitBoard():
+    def __init__(self, board, colour, zob_nums, zob_key=0):
+        self.board = board
+        self.colour = colour
+        self.zob_nums = zob_nums
+        self.zob_key = zob_key
+        self.zob_key = self.init_zobrist_key() if zob_key==0 else zob_key
+
+    def init_zobrist_key(self):
+        temp_board = self.board
+        key = 0
+        while temp_board:
+            next_square = lsb(temp_board)
+            key ^= self.zob_nums.rand_squares[next_square]
+            temp_board &= ~(square_bb(next_square))
+
+        if self.colour == "B":
+            key ^= self.zob_numbs.rand_player
+
+        return key
+
+rows = [row1, row2, row3, row4, row5, row6, row7, row8]
+columns = [columnA, columnB, columnC, columnD, columnE, columnF, columnG, columnH]
+class Square():
+    def __init__(self, square_ind):
+        self.s = square_ind
+
+    def row_of(self):
+        return rows[self.s >> 3]
+
+    def column_of(self):
+        return columns[self.s & 7]
+
+class Magic():
+    def __init__(self, mask, shift, magic, offset=0):
+        self.mask = mask
+        self.shift = shift # should always be 12
+        self.magic = magic
+        # self.offset - offset
+
+def relevant_blockers(square):
+    # get bitboard of all squares that can be moved through/on by a piece in square
+    shifts = [1,-1,8,-8]
+    mask = square.row_of() | square.column_of()
+    if rows.index(square.row_of()) + columns.index(square.column_of()) % 2 == 0:
+        mask &= black_squares
+    else:
+        mask &= white_squares
+
+    blockers = 0
+    print_board_with_colours(mask)
+    # laziest way possible to do this
+    # technically doesn't need to be efficient as long as it can be done in 10 secs at start
+    for shift in shifts:
+        landings, jumps = multi_jumps(mask, mask, square.s, shift)
+        print(landings)
+        for landing in landings:
+            blockers |= square_bb(landing)
+            blockers |= square_bb(landing - shift)
+
+    return blockers
+
+square = Square(1)
+blockers = relevant_blockers(square)
+print_board(blockers)
+def find_magics():
+    for i in range(len(squares)):
+        mask = relevant_blockers(i)
+
+
