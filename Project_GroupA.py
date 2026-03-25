@@ -397,6 +397,7 @@ def demo(board, colour):
     else:
         moves = get_all_moves(bitboard, colour)
         if(moves):
+            bitboard = make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
             moves[0].print_move()
 
                 # Not sure if supposed to get both moves from same board or get second move from updated board
@@ -404,10 +405,16 @@ def demo(board, colour):
                 #bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
         else:
             print("No moves found for", colour)
+            return
             
     colour = colours[(colours.index(colour)+1) % 2]
-    bitboard = make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
     print_board_with_colours(bitboard)
+    moves = get_all_moves(bitboard, colour)
+    if is_initial_board(bitboard):
+        moves = get_initial_moves(colour)
+    if(not moves):
+        print("No moves found for", colour)
+        return
     inp = input('')
     start = squares.index(inp[0:2])
     if (len(inp) > 2):
@@ -439,8 +446,8 @@ def demo(board, colour):
 
 def main():
     board, colour = parse_args(sys.argv)
-    #play_game(board,colour)
-    demo(board, colour)
+    play_game(board,colour)
+    #demo(board, colour)
     #print(board)
     #print_board_with_colours(bitboard)
     #print(squares[lsb(bitboard)])
