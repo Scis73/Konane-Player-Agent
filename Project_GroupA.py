@@ -390,23 +390,50 @@ def play_game(board, colour):
 def demo(board, colour):
     # For lab demo, supposed to output 1 move for each player
     bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, colours[(colours.index(colour)+1) % 2])
-    for i in range(2):
-        if is_initial_board(bitboard):
-            moves = get_initial_moves(colour)
-            bitboard = make_move(bitboard, squares.index(moves[0]))
-            print(moves[0])   # choose first opening move for now
-        else:
-            moves = get_all_moves(bitboard, colour)
-            if(moves):
-                moves[0].print_move()
+    if is_initial_board(bitboard):
+        moves = get_initial_moves(colour)
+        bitboard = make_move(bitboard, squares.index(moves[0]))
+        print(moves[0])   # choose first opening move for now
+    else:
+        moves = get_all_moves(bitboard, colour)
+        if(moves):
+            moves[0].print_move()
 
                 # Not sure if supposed to get both moves from same board or get second move from updated board
                 # Use this if we need to update board inbetween moves
                 #bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
-            else:
-                print("No moves found for", colour)
+        else:
+            print("No moves found for", colour)
             
-        colour = colours[(colours.index(colour)+1) % 2]
+    colour = colours[(colours.index(colour)+1) % 2]
+    bitboard = make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
+    print_board_with_colours(bitboard)
+    inp = input('')
+    start = squares.index(inp[0:2])
+    if (len(inp) > 2):
+        end = squares.index(inp[3:])
+        if start > end:
+            # if start higher, move is either down or left
+            if ((start - end) >= 16):
+                # if diff >= 16, move is down
+                jumps = (start-end) // 16
+                bitboard = make_move(bitboard, start, -8, jumps)
+            else:
+                jumps = (start-end) // 2
+                bitboard = make_move(bitboard, start, -1, jumps)
+        else:
+            # if start lower, move is either up or right
+            if ((end - start) >= 16):
+                # if diff >= 16, move is down
+                jumps = (end-start) // 16
+                bitboard = make_move(bitboard, start, 8, jumps)
+            else:
+                jumps = (end-start) // 2
+                bitboard = make_move(bitboard, start, 1, jumps)
+
+    else:
+        bitboard = make_move(bitboard, start)
+    print_board_with_colours(bitboard)
 
 
 
