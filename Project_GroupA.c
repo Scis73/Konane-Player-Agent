@@ -3,8 +3,21 @@
 #include<stdint.h>
 #include<string.h>
 #include<inttypes.h>
+#include<stdbool.h>
 
-char colours[] = {'B', 'W'};
+const char colours[] = {'B', 'W'};
+
+const int DB_index[64] = {
+	 0,  1, 48,  2, 57, 49, 28,  3, 
+	61, 58, 50, 42, 38, 29, 17,  4,
+	62, 55, 59, 36, 53, 51, 43, 22,
+	45, 39, 33, 30, 24, 18, 12,  5,
+	63, 47, 56, 27, 60, 41, 37, 16,
+	54, 35, 52, 21, 44, 32, 23, 11,
+	46, 26, 40, 15, 34, 20, 31, 10,
+	25, 14, 19,  9, 13,  8,  7,  6
+};
+
 // Location of all squares that can have white pieces
 // Can get all black pieces on a board by using &
 #define white_squares 0xAA55AA55AA55AA55ULL
@@ -85,7 +98,7 @@ void print_board(uint64_t board){
 
 
 void print_board_with_colours(uint64_t board){
-    // Prints 8x8 board with colour of each piece labeled, 0 for empty spaces
+    // Prints 8x8 board with colour of each piece labeled, '.' for empty spaces
     int rows[8][8];
     uint64_t temp_board = board;
     char colours[2] = {'B', 'W'};
@@ -130,7 +143,7 @@ uint64_t string_to_bitboard(char* string, char color_to_match){
     // print(bitboard)
 
     for(int i = 63; i >= 0; i--){
-        if (string[i] == color_to_match){
+        if (string[63-i] == color_to_match){
             bitboard |= (1ULL << i);
 	}
     }
@@ -139,13 +152,9 @@ uint64_t string_to_bitboard(char* string, char color_to_match){
 
 int lsb(uint64_t board){
     // Get index of least significat 1 bit on board
-    int index = 0;
-
-    while (board % 2 == 0){
-        board = board >> 1ULL;
-        index += 1;
-    }
-
+    const uint64_t debrujin = 0x03f79d71b4cb0a89ULL;
+    int index;
+    index = DB_index[((board & (0-board)) * debrujin) >> 58];
     return index;
 }
 
@@ -154,119 +163,26 @@ uint64_t square_bb(int s){
     return 1ULL << s;
 }
 
-int main(int argc, char *argv[]){
-    if(argc != 3){
-	    printf("Usage: ./PROGRAM_NAME <boardfile> colour\n");
-	    return 1;
-    }
-    uint64_t s_bb = square_bb(12);
-    print_board(s_bb);
-    char string_board[65] = "";
-    char line[9]; // TODO read board from file, reuse parse_args
-    FILE* fp;
-    
-    fp = fopen(argv[1], "r");
-    char *start;
-    char *end;
-    char temp;
-    while(fgets(line, 9, fp)){
-	line[strcspn(line, "\n")] = '\0';
-	printf("%s\n", line);
-	start = line;
-	end = start + strlen(line) -1;
-	// by default, A8 is first square read, want H8 to be first and A1 to be last
-	// so reverse each line before adding it to total board
-	while(start < end){
-	    temp = *start;
-	    *start = *end;
-	    *end = temp;
-	    ++start;
-	    --end;
-	}
-	strcat(string_board, line);
-    }
-    fclose(fp);
-    char colour = argv[2][0];
-    uint64_t bitboard = string_to_bitboard(string_board, colour);
-    printf("%" PRIu64 "\n", bitboard);
-    print_board(bitboard);
-    uint64_t test = 0xFFFFFFFFFFFFFFFFULL & columnC;
-    int lsbb = lsb(test);
-    printf("%d\n", lsbb);
-    //for(int i = 0; i < 64; i++){
-//	printf("%s\n", squares[i]);
-  //  }
-    uint64_t board = 0xFFFFFFFFFFFFFFFFULL & row8;
-    print_board_with_colours(board);
-    return 0;
-}
+typedef struct {
+    int pc_ind;
+    int shift;
+    int jumps;
 
-/*
-
-
- * Convert this to struct?
-class Move:
-    def __init__(self, pc_ind, shift, jumps):
-        # Index of attacking piece in squares list
-        self.pc_ind = pc_ind
-    
-        # Direction of shift on bitboard (1, -1, 8, -8)
-        self.shift = shift
-
-        # Number of jumps performed in move
-        self.jumps = jumps
-
+} Move; 
 
 void print_move(Move move){
-        if move.jumps == 0{
-            printf(squares[move.pc_ind]);
+        if (move.jumps == 0){
+            printf("%s\n", squares[move.pc_ind]);
 	}
         else{
-            printf("%s-%s\n", squares[move.pc_ind], squares[move.pc_ind + (move.shift*self.jumps*2)]);
+            printf("%s-%s\n", squares[move.pc_ind], squares[move.pc_ind + (move.shift*move.jumps*2)]);
 	}
 }
 
-		    
- * TODO add array pointer to inputs to get output
-void get_all_moves(uint64_t board, char colour, Move* moves):
-	
-    # Generate all moves for given colour and stores them in a list
-    moves = []
-    shifts = [1, -1, 8, -8]
-
-    if colour == "B":
-        board_self = board & black_squares
-        board_opp = board & white_squares
-    else:
-        board_self = board & white_squares
-        board_opp = board & black_squares
-
-    # Could change these to take board_self and board_opp, currently doing the same thing twice
-    attackers = right_attacks(board, colour)
-    attackers |= left_attacks(board, colour)
-    attackers |= up_attacks(board, colour)
-    attackers |= down_attacks(board, colour)
-    
-    while attackers:
-        # Get index of first attacker
-        attacker = lsb(attackers)
-        # Get all moves for each direction
-        for shift in shifts:
-            _, jumps = multi_jumps(board_self, board_opp, attacker, shift)
-            for jump in range(1, jumps+1):
-                move = Move(attacker, shift, jump)
-                moves.append(move)
-
-        # Remove attacker from attackers
-        attackers ^= square_bb(attacker)
-    
-    return moves
-*/
-/*
-uint64_t make_move(uint64_t board, int start, int direction=0, int jumps=0):
+uint64_t make_move(uint64_t board, int start, int direction, int jumps) {
     // Makes board with new state after a move
     // start is index of piece performing move
-    // directions: left = 1, right = -1, up = 8, down = -8
+    // directions: left = -1, right = 1, up = 8, down = -8
 
     // if jumps is 0, assume initial removal and remove just one piece
     if (jumps == 0){
@@ -280,159 +196,265 @@ uint64_t make_move(uint64_t board, int start, int direction=0, int jumps=0):
     }
     // XOR original board with changes to remove captured pieces and attacker from start pos, add attacker to end pos
     return board ^ changes;
+}
+
+
 
 // Could probably rewrite all 4 direction attack functions into single function using same method as multijump func
-uint64_t right_attacks(uint64_t board, char colour):
+uint64_t right_attacks(uint64_t board, char colour) {
     // Finds all pieces capable of moving left to right for given board and colour
     uint64_t attackers;
-    if (colour == "B"){
+    if (colour == 'B'){
         attackers = board & black_squares;
     }
     else{
         attackers = board & white_squares;
+	print_board(attackers);
     }
     // Filter out all attackers from columns G and H since there will never be a valid attack in this direction
     // Prevents attacks that try to wrap around board
     attackers &= ~(columnG | columnH);
     // Checks if there is an empty space 2 spaces away for attacker to move into
     // and checks if there is a piece next to attacker for it to attack
-    attackers = (attackers & ~(board << 2)) & (attackers & (board << 1));
+    attackers = (attackers & ~(board >> 2)) & (attackers & (board >> 1));
 
     return attackers;
+}
 
-
-uint64_t left_attacks(uint64_t board, char colour):
+uint64_t left_attacks(uint64_t board, char colour) {
     // Finds all pieces capable of moving right to left for given board and colour
-    if (colour == "B"):
-        attackers = board & black_squares
-    else:
-        attackers = board & white_squares
+    uint64_t attackers;
+    if (colour == 'B') {
+        attackers = board & black_squares;
+    }
+    else {
+        attackers = board & white_squares;
+    }
        
     // Filter out all attackers from columns A and B since there will never be a valid attack in this direction
     // Prevents attacks that try to wrap around board
-    attackers &= ~(columnA |columnB)
+    attackers &= ~(columnA |columnB);
     // Checks if there is an empty space 2 spaces away from the left
     // and checks if there is a piece next to attacker for it to attack
-    attackers = (attackers & ~(board >> 2)) & (attackers & (board >> 1)) 
+    attackers = (attackers & ~(board << 2)) & (attackers & (board << 1)); 
 
-    return attackers
+    return attackers;
+}
 
-
-def up_attacks(board, colour):
+uint64_t up_attacks(uint64_t board, char colour) {
     // Finds all pieces capable of moving up from given board and colour
-    if (colour == "B"):
-        attackers = board & black_squares
-    else:
-        attackers = board & white_squares
+    uint64_t attackers;
+    if (colour == 'B'){
+        attackers = board & black_squares;
+    }
+    else {
+        attackers = board & white_squares;
+    }
        
     // Filter out all attackers from row7 and 8 since there will never be a valid attack in this direction
     // Prevents attacks that try to wrap around board
-    attackers &= ~(row7 |row8)
+    attackers &= ~(row7 |row8);
     // Checks if there is an empty space 2 spaces up and opponent 1 up
     // and checks if there is a piece next to attacker for it to attack
-    attackers = (attackers & ~(board >>16)) & (attackers & (board >> 8)) 
+    attackers = (attackers & ~(board >>16)) & (attackers & (board >> 8));
 
-    return attackers
+    return attackers;
+}
 
-def down_attacks(board, colour):
+uint64_t down_attacks(uint64_t board, char colour) {
     // Finds all pieces capable of moving left to right for given board and colour
-    if (colour == "B"):
-        attackers = board & black_squares
-    else:
-        attackers = board & white_squares
+    uint64_t attackers;
+    if (colour == 'B') {
+        attackers = board & black_squares;
+    }
+    else {
+        attackers = board & white_squares;
+    }
        
     // Filter out all attackers from row1 and row2 since there will never be a valid attack in this direction
     // Prevents attacks that try to wrap around board
-    attackers &= ~(row1 |row2)
+    attackers &= ~(row1 |row2);
     // Checks if there is an empty space 2 spaces down
     // and checks if there is a piece next to attacker for it to attack
-    attackers = (attackers & ~(board <<16)) & (attackers & (board <<8)) 
+    attackers = (attackers & ~(board <<16)) & (attackers & (board <<8));
 
-    return attackers
+    return attackers;
+}
 
- * TODO change to only output 1 value and/or add pointer to input to get 2nd value
-def multi_jumps(board_self, board_opp, start_idx, shift):
-    valid_landings = []
-    # Added counter for total number of jumps found to work with other funcs, could streamline this later - Steve
-    num_jumps = 0
-    current_pos = start_idx
-    all_pieces = board_self | board_opp
+// TODO change to only output 1 value and/or add pointer to input to get 2nd value
+int multi_jumps(uint64_t board_self, uint64_t board_opp, int start_idx, int shift) {
+    // valid_landings = []
+    // Added counter for total number of jumps found to work with other funcs, could streamline this later - Steve
+    int num_jumps = 0;
+    int current_pos = start_idx;
+    uint64_t all_pieces = board_self | board_opp;
+    int mid;
+    int end; 
+    int curr_col;
+    int end_col;
+    // Check for consecutive jumps ( 2, 4 & 6 jumps)
+    while (1) {
+        mid = current_pos + shift;
+        end = current_pos + 2*shift;
     
-    # Check for consecutive jumps ( 2, 4 & 6 jumps)
-    while True:
-        mid = current_pos + shift
-        end = current_pos + 2*shift
+        // Boundary check bitboard limits (0-63)
+        if  (!((0 <= end) && (end <= 63))){
+            break;
+	}
         
-        # Boundary check bitboard limits (0-63)
-        if not (0 <= end <= 63): 
-            break
-        
-        curr_col = current_pos % 8
-        end_col = end % 8
-        if abs(curr_col - end_col) > 2:
-            break
-        # Check if mid has opponent and end is empty
-        if ((board_opp >> mid) & 1) and not ((all_pieces >> end) & 1):
-            valid_landings.append(end)
-            num_jumps += 1
-            # Update position to check for a further jump
-            current_pos = end 
-        else:
-            break
+        curr_col = current_pos % 8;
+        end_col = end % 8;
+        if (abs(curr_col - end_col) > 2) {
+            break;
+	}
+        // Check if mid has opponent and end is empty
+        if (((board_opp >> mid) & 1) && !((all_pieces >> end) & 1)){
+            //valid_landings.append(end)
+            num_jumps++;
+            // Update position to check for a further jump
+            current_pos = end ;
+	}
+        else{
+            break;
+	}
+    }
             
-    return valid_landings, num_jumps
-*/
-// Tests if the initial if board is valid by checking if there are any empty squares, since the initial board should be full
-// This helps for first player, but second player also has to do initial move after 1 piece missing
-/*
-def is_initial_board(board_string):
-    # Returns True if there are no empty squares
-    return "O" not in board_string
-*/
-/*
+    return num_jumps;
+}
+int get_all_moves_count = 0;
+void get_all_moves(uint64_t board, char colour, Move* moves, int* size){
+	
+    // Generate all moves for given colour and stores them in a list
+    get_all_moves_count++;
+    const int shifts[4] = {1, -1, 8, -8};
+    uint64_t board_self;
+    uint64_t board_opp;
+    uint64_t attackers;
+    uint64_t attacker;
+    *size = 0;
+    int jumps;
+    Move move;
+
+    if (colour == 'B') {
+        board_self = board & black_squares;
+        board_opp = board & white_squares;
+    }
+    else {
+        board_self = board & white_squares;
+        board_opp = board & black_squares;
+    }
+    // Could change these to take board_self and board_opp, currently doing the same thing twice
+    attackers = right_attacks(board, colour);
+    attackers |= left_attacks(board, colour);
+    attackers |= up_attacks(board, colour);
+    attackers |= down_attacks(board, colour);
+    //moves = malloc(20*sizeof(Move));
+    while (attackers > 0) {
+        // Get index of first attacker
+        attacker = lsb(attackers);
+        // Get all moves for each direction
+        for (int i = 0; i < 4; i++) {
+            jumps = multi_jumps(board_self, board_opp, attacker, shifts[i]);
+            for (int j = 1; j < jumps+1; j++) {
+                move.pc_ind = attacker;
+	        move.shift = shifts[i];
+	        move.jumps = j;
+                moves[*size] = move;
+		*size = *size + 1;
+	    }
+
+        // Remove attacker from attackers
+	    }   
+        attackers ^= square_bb(attacker);
+    }
+}    
+
 bool is_initial_board(uint64_t board){
     // Returns True if there are no empty squares or only 1 empty square
     uint64_t full_board = 0xFFFFFFFFFFFFFFFFULL;
     uint64_t boards[3]; 
     boards[0] = full_board;
-    boards[1] = full_board ^ square_bb(squares[28]);
-    boards[2] = full_board ^ square_bb(squares[35]);
+    boards[1] = full_board ^ square_bb(28);
+    boards[2] = full_board ^ square_bb(35);
     bool found = false;
     for(int i = 0; i < 3; i++){
 	    if(board == boards[i]){
 		    found = true;
+	    }
+    }
     return found;
+}
 
 // Returns list of valid opening moves, which are just the 4 pieces in the middle of the board that can be removed
-void get_initial_moves(char colour, Move* moves):
+void get_initial_moves(char colour, char** moves){
     // Allowed opening removals
-    if (colour == "B"){
-        moves = ["D5", "E4"];
+    if (colour == 'B'){
+        moves[0] = "D5";
+        moves[1] = "E4";
     }
     else{
-        moves = ["E5", "D4"];
+        moves[0] = "E5";
+        moves[1] = "D4";
     }
+}
 
-void play_game(char* board, char colour):
+int terrible_square_index_find(char column, char row){
+    int index;
+    switch (column) {
+    case 'A':
+	    index = (row - 49) * 8;
+	    break;
+    case 'B':
+	    index = (row - 49) * 8 + 1;
+	    break;
+    case 'C':
+	    index = (row - 49) * 8 + 2;
+	    break;
+    case 'D':
+	    index = (row - 49) * 8 + 3;
+	    break;
+    case 'E':
+	    index = (row - 49) * 8 + 4;
+	    break;
+    case 'F':
+	    index = (row - 49) * 8 + 5;
+	    break;
+    case 'G':
+	    index = (row - 49) * 8 + 6;
+	    break;
+    case 'H':
+	    index = (row - 49) * 8 + 7;
+	    break;
+    }
+    return index;
+
+
+}
+
+void play_game(char* board, char colour) {
     // Automatically plays game vs other agents using the drivercheck.pl script
     
     int jumps;
     int start;
     int end;
-    Move* moves[20]; // Should never have move than 20 moves available (probably closer to 10)
-    uint64_t bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, colours[(colours.index(colour)+1) % 2])
+    int turn_count = 0;
+    char* init_moves[3];
+    int move_count = 0;
+    char inp[7];
+    Move* moves; 
+    uint64_t bitboard = string_to_bitboard(board, colours[0]) | string_to_bitboard(board, colours[1]);
     if (is_initial_board(bitboard)){
-        moves = get_initial_moves(colour)
-        bitboard = make_move(bitboard, squares.index(moves[0]))
-        printf("%s\n", moves[0].start)   // choose first opening move for now
+        get_initial_moves(colour, init_moves);
+	start = terrible_square_index_find(init_moves[0][0], init_moves[0][1]);
+        bitboard = make_move(bitboard, start, 0, 0);
+        printf("%s\n", init_moves[0]);   // choose first opening move for now
     }
 
-    while true{
-        char inp[6];
+    while (1){
 	fgets(inp, sizeof(inp), stdin);
-        start = squares.index(inp[0:2]) //TODO change this
-        if (len(inp) > 2){
-            end = squares.index(inp[3:]) // TODO change this
+        start = terrible_square_index_find(inp[0], inp[1]); 
+        if (strlen(inp) > 2){
+            end = terrible_square_index_find(inp[3], inp[4]);
             if (start > end){
                 // if start higher, move is either down or left
                 if ((start - end) >= 16){
@@ -448,7 +470,7 @@ void play_game(char* board, char colour):
             else{
                 // if start lower, move is either up or right
                 if ((end - start) >= 16){
-                    // if diff >= 16, move is down
+                    // if diff >= 16, move is up
                     jumps = (end-start) / 16;
                     bitboard = make_move(bitboard, start, 8, jumps);
 		}
@@ -460,19 +482,91 @@ void play_game(char* board, char colour):
 
 	}
         else{
-            bitboard = make_move(bitboard, start)
+            bitboard = make_move(bitboard, start, 0, 0);
 	}
 
-        moves = get_all_moves(bitboard, colour)
-        if (moves){
-            bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
-            moves[0].print_move()
+    	moves = malloc(20*sizeof(Move)); // Should never have move than 20 moves available (probably closer to 10)
+        get_all_moves(bitboard, colour, moves, &move_count);
+	for(int i = 0; i < move_count; i++) {
+	}
+        if (move_count > 0){
+            bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps);
+            print_move(moves[0]);
+	    free(moves);
 	}
         else{
-            printf("\n");
-            break
+            printf("I lose\n");
+	    free(moves);
+            break;
 	}
     }
+}
+int main(int argc, char *argv[]){
+    if(argc != 3){
+	printf("Usage: ./PROGRAM_NAME <boardfile> colour\n");
+	return 1;
+    }
+    char string_board[65] = "";
+    char line[9];
+    FILE* fp;
+    
+    fp = fopen(argv[1], "r");
+    char *start;
+    char *end;
+    char temp;
+    while(fgets(line, 9, fp)){
+	line[strcspn(line, "\n")] = '\0';
+	start = line;
+	end = start + strlen(line) -1;
+	// by default, A8 is first square read, want H8 to be first and A1 to be last
+	// so reverse each line before adding it to total board
+	while(start < end){
+	    temp = *start;
+	    *start = *end;
+	    *end = temp;
+	    ++start;
+	    --end;
+	}
+	strcat(string_board, line);
+    }
+    fclose(fp);
+    char colour = argv[2][0];
+    /*
+    uint64_t bitboard = string_to_bitboard(string_board, colours[0]) | string_to_bitboard(string_board, colours[1]);
+    Move* moves = malloc(20*sizeof(Move));
+    int move_count = 0;
+    print_board_with_colours(bitboard);
+    get_all_moves(bitboard, colour, moves, &move_count);
+    for(int i = 0; i < move_count; i++) {
+	print_move(moves[i]);
+    }
+
+    free(moves);
+    */
+    play_game(string_board, colour);
+    return 0;
+}
+
+/*
+ * TODO add array pointer to inputs to get output
+
+
+
+
+
+
+
+*/
+// Tests if the initial if board is valid by checking if there are any empty squares, since the initial board should be full
+// This helps for first player, but second player also has to do initial move after 1 piece missing
+/*
+def is_initial_board(board_string):
+    # Returns True if there are no empty squares
+    return "O" not in board_string
+*/
+/*
+
+
     //print(board)
     //print_board_with_colours(bitboard)
     //print(squares[lsb(bitboard)])
