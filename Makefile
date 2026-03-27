@@ -1,7 +1,15 @@
-Project_GroupA: Project_GroupA.o
-	gcc-13 -std=c11 -Wall -Wextra -pedantic -o $@ $^
+CC = gcc-13
+CFLAGS = -std=c11 -Wall -Wextra -pedantic
+
+all: konaneplayerA
+
+bitboard.o: bitboard.c bitboard.h
+	${CC} ${CFLAGS} -c -o $@ $<
+
+konaneplayerA: main.o bitboard.o
+	${CC} ${CFLAGS} -o $@ $^
 
 .PHONY: clean
 
 clean:
-	rm -rf *.o Project_GroupA
+	rm -rf *.o konaneplayerA
