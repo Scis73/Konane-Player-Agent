@@ -343,6 +343,51 @@ def get_initial_moves(colour):
     else:
         return ["E5", "D4"]
 
+def get_opponent(colour):
+    # Returns opponent colour
+    return "W" if colour == "B" else "B"
+
+def evaluate(board, colour):
+    # Evaluation function based on mobility heuristic from Ernst (1995)
+    # Simple evaluation function that just counts number of moves available to each player and returns difference
+    my_moves = len(get_all_moves(board, colour))
+    opp_moves = len(get_all_moves(board, get_opponent(colour)))
+    return my_moves - opp_moves
+
+def minimax(board, colour, depth):
+    # Base case - if depth is 0 or no moves available, evaluate the board
+    moves = get_all_moves(board, colour)
+    if depth == 0 or not moves:
+        return evaluate(board, colour), None
+
+    best_move = None
+
+    # For maximizing player (Black), we want to maximize the score
+    if colour == "B":  # maximizing player
+        best_score = float('-inf')
+        for move in moves:
+            # Generate new board state after move
+            new_board = make_move(board, move.pc_ind, move.shift, move.jumps)
+            score, _ = minimax(new_board, get_opponent(colour), depth - 1)
+            # Update best score and move if this move is better
+            if score > best_score:
+                best_score = score
+                best_move = move
+        return best_score, best_move
+
+    # For minimizing player (White), we want to minimize the score
+    else:  # minimizing player
+        best_score = float('inf')
+        for move in moves:
+            # Generate new board state after move
+            new_board = make_move(board, move.pc_ind, move.shift, move.jumps)
+            score, _ = minimax(new_board, get_opponent(colour), depth - 1)
+            # Update best score and move if this move is better
+            if score < best_score:
+                best_score = score
+                best_move = move
+        return best_score, best_move
+
 def play_game(board, colour):
     # Automatically plays game vs other agents using the drivercheck.pl script
     bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, colours[(colours.index(colour)+1) % 2])
@@ -381,8 +426,11 @@ def play_game(board, colour):
 
         moves = get_all_moves(bitboard, colour)
         if moves:
-            bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
-            moves[0].print_move()
+            #bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
+            #moves[0].print_move()
+            _, best_move = minimax(bitboard, colour, 3)
+            bitboard = make_move(bitboard, best_move.pc_ind, best_move.shift, best_move.jumps)
+            best_move.print_move()
         else:
             print()
             break
@@ -411,12 +459,24 @@ def demo(board, colour):
 
 
 def main():
-    board, colour = parse_args(sys.argv)
+    ##board, colour = parse_args(sys.argv)
     #play_game(board,colour)
-    demo(board, colour)
+    ##demo(board, colour)
     #print(board)
     #print_board_with_colours(bitboard)
     #print(squares[lsb(bitboard)])
+
+    test_board = 0xFFFFFFFFFFFFFFFF ^ square_bb(squares.index("D5"))
+    
+    print("Testing evaluate:")
+    score = evaluate(test_board, "B")
+    print(f"Score for B: {score}")
+    
+    print("Testing minimax:")
+    best_score, best_move = minimax(test_board, "B", 2)
+    print(f"Best score: {best_score}")
+    print(f"Best move: ", end="")
+    best_move.print_move()
 
     """
     test_board = (1 << 37) | (1 << 36) 
