@@ -356,6 +356,8 @@ def get_opponent(colour):
     # Returns opponent colour
     return "W" if colour == "B" else "B"
 
+# in 5 tests: it beat the randomkonaneplayer 5-0, 3 as black, 2 as white
+# need further tweaking still missing most optimal moves - Andre 
 def evaluate(board, colour):
     # Evaluation function based on mobility heuristic from Ernst (1995)
     # Simple evaluation function that just counts number of moves available to each player and returns difference
@@ -363,6 +365,8 @@ def evaluate(board, colour):
     opp_moves = len(get_all_moves(board, get_opponent(colour)))
     return my_moves - opp_moves
 
+# During testing hasnt missed a 3 jump yet, however still has missed 2 jumps
+# In some cases it does a 1 jump instead of a 1 jump leading to a 2 jump. However it could be the algorithmn seeing that the 1 jump has a better score than the 2 jump. 
 def minimax(board, colour, depth, alpha, beta):
     # Base case - if depth is 0 or no moves available, evaluate the board
     moves = get_all_moves(board, colour)
