@@ -1,5 +1,9 @@
 #! /usr/bin/env python3
 import sys
+import time 
+
+# The time imit the agent has to make a move, in seconds
+THINKING_TIME = 10
 
 colours = ["B", "W"]
 # Location of all squares that can have white pieces
@@ -354,7 +358,7 @@ def evaluate(board, colour):
     opp_moves = len(get_all_moves(board, get_opponent(colour)))
     return my_moves - opp_moves
 
-def minimax(board, colour, depth):
+def minimax(board, colour, depth, alpha, beta):
     # Base case - if depth is 0 or no moves available, evaluate the board
     moves = get_all_moves(board, colour)
     if depth == 0 or not moves:
@@ -363,16 +367,21 @@ def minimax(board, colour, depth):
     best_move = None
 
     # For maximizing player (Black), we want to maximize the score
-    if colour == "B":  # maximizing player
+    if colour == "B":  
         best_score = float('-inf')
         for move in moves:
             # Generate new board state after move
             new_board = make_move(board, move.pc_ind, move.shift, move.jumps)
-            score, _ = minimax(new_board, get_opponent(colour), depth - 1)
+            score, _ = minimax(new_board, get_opponent(colour), depth - 1, alpha, beta)
             # Update best score and move if this move is better
             if score > best_score:
                 best_score = score
                 best_move = move
+            # Alpha update - best score maximizer is guaranteed
+            alpha = max(alpha, best_score)
+            # Beta cutoff - minimizer would never allow this branch
+            if beta <= alpha:
+                break
         return best_score, best_move
 
     # For minimizing player (White), we want to minimize the score
@@ -381,12 +390,42 @@ def minimax(board, colour, depth):
         for move in moves:
             # Generate new board state after move
             new_board = make_move(board, move.pc_ind, move.shift, move.jumps)
-            score, _ = minimax(new_board, get_opponent(colour), depth - 1)
+            score, _ = minimax(new_board, get_opponent(colour), depth - 1, alpha, beta)
             # Update best score and move if this move is better
             if score < best_score:
                 best_score = score
                 best_move = move
+            # Beta update - best score minimizer is guaranteed
+            beta = min(beta, best_score)
+            # Alpha cutoff - maximizer would never allow this branch
+            if beta <= alpha:
+                break
         return best_score, best_move
+
+def iterative_deepening(board, colour):
+    # Start the timer
+    start_time = time.time()
+    
+    best_move = None
+    depth = 1
+
+    # Keep searching deeper until we run out of time
+    while True:
+        # Check if we have enough time to search another depth
+        elapsed = time.time() - start_time
+        if elapsed >= THINKING_TIME:
+            break
+
+        # Search at current depth
+        _, move = minimax(board, colour, depth, float('-inf'), float('inf'))
+        
+        # Only update best move if we found one
+        if move is not None:
+            best_move = move
+
+        depth += 1
+
+    return best_move
 
 def play_game(board, colour):
     # Automatically plays game vs other agents using the drivercheck.pl script
@@ -428,7 +467,7 @@ def play_game(board, colour):
         if moves:
             #bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
             #moves[0].print_move()
-            _, best_move = minimax(bitboard, colour, 3)
+            best_move = iterative_deepening(bitboard, colour)
             bitboard = make_move(bitboard, best_move.pc_ind, best_move.shift, best_move.jumps)
             best_move.print_move()
         else:
@@ -459,24 +498,24 @@ def demo(board, colour):
 
 
 def main():
-    ##board, colour = parse_args(sys.argv)
-    #play_game(board,colour)
+    board, colour = parse_args(sys.argv)
+    play_game(board,colour)
     ##demo(board, colour)
     #print(board)
     #print_board_with_colours(bitboard)
     #print(squares[lsb(bitboard)])
 
-    test_board = 0xFFFFFFFFFFFFFFFF ^ square_bb(squares.index("D5"))
+    #test_board = 0xFFFFFFFFFFFFFFFF ^ square_bb(squares.index("D5"))
     
-    print("Testing evaluate:")
-    score = evaluate(test_board, "B")
-    print(f"Score for B: {score}")
+    #print("Testing evaluate:")
+    #score = evaluate(test_board, "B")
+    #print(f"Score for B: {score}")
     
-    print("Testing minimax:")
-    best_score, best_move = minimax(test_board, "B", 2)
-    print(f"Best score: {best_score}")
-    print(f"Best move: ", end="")
-    best_move.print_move()
+    #print("Testing minimax:")
+    #best_score, best_move = minimax(test_board, "B", 2, float('-inf'), float('inf'))
+    #print(f"Best score: {best_score}")
+    #print(f"Best move: ", end="")
+    #best_move.print_move()
 
     """
     test_board = (1 << 37) | (1 << 36) 
