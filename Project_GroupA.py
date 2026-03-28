@@ -297,10 +297,11 @@ def multi_jumps(board_self, board_opp, start_idx, shift):
     # Added counter for total number of jumps found to work with other funcs, could streamline this later - Steve
     num_jumps = 0
     current_pos = start_idx
-    all_pieces = board_self | board_opp
+    #all_pieces = board_self | board_opp
     
     # Check for consecutive jumps ( 2, 4 & 6 jumps)
     while True:
+        all_pieces = board_self | board_opp
         mid = current_pos + shift
         end = current_pos + 2*shift
         
@@ -317,6 +318,10 @@ def multi_jumps(board_self, board_opp, start_idx, shift):
             valid_landings.append(end)
             num_jumps += 1
             # Update position to check for a further jump
+            # Remove captured piece and move jumping piece, ensures multi-jumps are only found if they are actually possible on the board
+            board_opp &= ~(1 << mid)
+            board_self &= ~(1 << current_pos)
+            board_self |= (1 << end)
             current_pos = end 
         else:
             break
@@ -501,7 +506,7 @@ def main():
     board, colour = parse_args(sys.argv)
     play_game(board,colour)
     ##demo(board, colour)
-    #print(board)
+    ##print(board)
     #print_board_with_colours(bitboard)
     #print(squares[lsb(bitboard)])
 
