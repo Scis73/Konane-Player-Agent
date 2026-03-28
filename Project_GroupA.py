@@ -1,6 +1,10 @@
 #! /usr/bin/env python3
 import sys
 import random
+import time 
+
+# The time imit the agent has to make a move, in seconds
+THINKING_TIME = 10
 
 colours = ["B", "W"]
 # Location of all squares that can have white pieces
@@ -294,10 +298,11 @@ def multi_jumps(board_self, board_opp, start_idx, shift):
     # Added counter for total number of jumps found to work with other funcs, could streamline this later - Steve
     num_jumps = 0
     current_pos = start_idx
-    all_pieces = board_self | board_opp
+    #all_pieces = board_self | board_opp
     
     # Check for consecutive jumps ( 2, 4 & 6 jumps)
     while True:
+        all_pieces = board_self | board_opp
         mid = current_pos + shift
         end = current_pos + 2*shift
         
@@ -314,6 +319,10 @@ def multi_jumps(board_self, board_opp, start_idx, shift):
             valid_landings.append(end)
             num_jumps += 1
             # Update position to check for a further jump
+            # Remove captured piece and move jumping piece, ensures multi-jumps are only found if they are actually possible on the board
+            board_opp &= ~(1 << mid)
+            board_self &= ~(1 << current_pos)
+            board_self |= (1 << end)
             current_pos = end 
         else:
             break
@@ -343,6 +352,90 @@ def get_initial_moves(colour):
         return ["D5", "E4"]
     else:
         return ["E5", "D4"]
+
+def get_opponent(colour):
+    # Returns opponent colour
+    return "W" if colour == "B" else "B"
+
+# in 5 tests: it beat the randomkonaneplayer 5-0, 3 as black, 2 as white
+# need further tweaking still missing most optimal moves - Andre 
+def evaluate(board, colour):
+    # Evaluation function based on mobility heuristic from Ernst (1995)
+    # Simple evaluation function that just counts number of moves available to each player and returns difference
+    my_moves = len(get_all_moves(board, colour))
+    opp_moves = len(get_all_moves(board, get_opponent(colour)))
+    return my_moves - opp_moves
+
+# During testing hasnt missed a 3 jump yet, however still has missed 2 jumps
+# In some cases it does a 1 jump instead of a 1 jump leading to a 2 jump. However it could be the algorithmn seeing that the 1 jump has a better score than the 2 jump. 
+def minimax(board, colour, depth, alpha, beta):
+    # Base case - if depth is 0 or no moves available, evaluate the board
+    moves = get_all_moves(board, colour)
+    if depth == 0 or not moves:
+        return evaluate(board, colour), None
+
+    best_move = None
+
+    # For maximizing player (Black), we want to maximize the score
+    if colour == "B":  
+        best_score = float('-inf')
+        for move in moves:
+            # Generate new board state after move
+            new_board = make_move(board, move.pc_ind, move.shift, move.jumps)
+            score, _ = minimax(new_board, get_opponent(colour), depth - 1, alpha, beta)
+            # Update best score and move if this move is better
+            if score > best_score:
+                best_score = score
+                best_move = move
+            # Alpha update - best score maximizer is guaranteed
+            alpha = max(alpha, best_score)
+            # Beta cutoff - minimizer would never allow this branch
+            if beta <= alpha:
+                break
+        return best_score, best_move
+
+    # For minimizing player (White), we want to minimize the score
+    else:  # minimizing player
+        best_score = float('inf')
+        for move in moves:
+            # Generate new board state after move
+            new_board = make_move(board, move.pc_ind, move.shift, move.jumps)
+            score, _ = minimax(new_board, get_opponent(colour), depth - 1, alpha, beta)
+            # Update best score and move if this move is better
+            if score < best_score:
+                best_score = score
+                best_move = move
+            # Beta update - best score minimizer is guaranteed
+            beta = min(beta, best_score)
+            # Alpha cutoff - maximizer would never allow this branch
+            if beta <= alpha:
+                break
+        return best_score, best_move
+
+def iterative_deepening(board, colour):
+    # Start the timer
+    start_time = time.time()
+    
+    best_move = None
+    depth = 1
+
+    # Keep searching deeper until we run out of time
+    while True:
+        # Check if we have enough time to search another depth
+        elapsed = time.time() - start_time
+        if elapsed >= THINKING_TIME:
+            break
+
+        # Search at current depth
+        _, move = minimax(board, colour, depth, float('-inf'), float('inf'))
+        
+        # Only update best move if we found one
+        if move is not None:
+            best_move = move
+
+        depth += 1
+
+    return best_move
 
 def play_game(board, colour):
     # Automatically plays game vs other agents using the drivercheck.pl script
@@ -382,18 +475,57 @@ def play_game(board, colour):
 
         moves = get_all_moves(bitboard, colour)
         if moves:
-            bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
-            moves[0].print_move()
+            #bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
+            #moves[0].print_move()
+            best_move = iterative_deepening(bitboard, colour)
+            bitboard = make_move(bitboard, best_move.pc_ind, best_move.shift, best_move.jumps)
+            best_move.print_move()
         else:
             print()
             break
 
+def demo(board, colour):
+    # For lab demo, supposed to output 1 move for each player
+    bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, colours[(colours.index(colour)+1) % 2])
+    for i in range(2):
+        if is_initial_board(bitboard):
+            moves = get_initial_moves(colour)
+            bitboard = make_move(bitboard, squares.index(moves[0]))
+            print(moves[0])   # choose first opening move for now
+        else:
+            moves = get_all_moves(bitboard, colour)
+            if(moves):
+                moves[0].print_move()
+
+                # Not sure if supposed to get both moves from same board or get second move from updated board
+                # Use this if we need to update board inbetween moves
+                #bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
+            else:
+                print("No moves found for", colour)
+            
+        colour = colours[(colours.index(colour)+1) % 2]
+
+
+
 def main():
     board, colour = parse_args(sys.argv)
     play_game(board,colour)
-    #print(board)
+    ##demo(board, colour)
+    ##print(board)
     #print_board_with_colours(bitboard)
     #print(squares[lsb(bitboard)])
+
+    #test_board = 0xFFFFFFFFFFFFFFFF ^ square_bb(squares.index("D5"))
+    
+    #print("Testing evaluate:")
+    #score = evaluate(test_board, "B")
+    #print(f"Score for B: {score}")
+    
+    #print("Testing minimax:")
+    #best_score, best_move = minimax(test_board, "B", 2, float('-inf'), float('inf'))
+    #print(f"Best score: {best_score}")
+    #print(f"Best move: ", end="")
+    #best_move.print_move()
 
     """
     test_board = (1 << 37) | (1 << 36) 
