@@ -127,24 +127,30 @@ void print_move(Move move){
             printf("%s-%s\n", SQUARES[move.pc_ind], SQUARES[move.pc_ind + (move.shift*move.jumps*2)]);
 	}
 }
-
-uint64_t make_move(uint64_t board, int start, int direction, int jumps) {
+// TODO change return type back if this doesn't work
+void make_move(uint64_t* board, int start, int direction, int jumps) {
     // Makes board with new state after a move
     // start is index of piece performing move
     // directions: left = -1, right = 1, up = 8, down = -8
-
+    uint64_t new_board;
+    uint64_t changes;
     // if jumps is 0, assume initial removal and remove just one piece
     if (jumps == 0){
-        return board ^ square_bb(start);
+	new_board = *board ^ square_bb(start);
+	*board = new_board;
+        //return board ^ square_bb(start);
     }
 
     // Make new board containing all squares changed by move (start and end pos of attacker, captured pieces)
-    uint64_t changes = square_bb(start) | square_bb(start + (direction * jumps * 2));
-    for(int i = 0; i < jumps; i++){
-        changes |= square_bb(start + direction + (direction * i * 2));
-    }
+    else {
+    	changes = square_bb(start) | square_bb(start + (direction * jumps * 2));
+    	for(int i = 0; i < jumps; i++){
+            changes |= square_bb(start + direction + (direction * i * 2));
+    	}
     // XOR original board with changes to remove captured pieces and attacker from start pos, add attacker to end pos
-    return board ^ changes;
+    *board = *board ^ changes; // new version
+    //return board ^ changes;
+    }
 }
 
 
@@ -158,7 +164,6 @@ uint64_t right_attacks(uint64_t board, char colour) {
     }
     else{
         attackers = board & WHITE_SQUARES;
-	print_board(attackers);
     }
     // Filter out all attackers from columns G and H since there will never be a valid attack in this direction
     // Prevents attacks that try to wrap around board
@@ -383,11 +388,12 @@ char get_opponent(char colour) {
     if (colour == 'W') {
 	    return 'B';
     }
-    else return 'W';
+    return 'W';
 }
+
 // in 5 tests: it beat the randomkonaneplayer 5-0, 3 as black, 2 as white
 // need further tweaking still missing most optimal moves - Andre 
-float evaluate(uint64_t board, char colour) {
+void evaluate(uint64_t board, char colour, float* best_score) {
     // Evaluation function based on mobility heuristic from Ernst (1995)
     // Simple evaluation function that just counts number of moves available to each player and returns difference
     int my_move_count = 0;
@@ -395,100 +401,116 @@ float evaluate(uint64_t board, char colour) {
     Move* my_moves;
     Move* opp_moves;
     
-    my_moves = malloc(20*sizeof(Move));
+    my_moves = malloc(30*sizeof(Move));
     get_all_moves(board, colour, my_moves, &my_move_count);
     if (my_moves != NULL) {
 	    free(my_moves);
     }
-    opp_moves = malloc(20*sizeof(Move));
+    opp_moves = malloc(30*sizeof(Move));
     get_all_moves(board, get_opponent(colour), opp_moves, &opp_move_count);
     if (opp_moves != NULL) {
 	    free(opp_moves);
     }
-    return (float)(my_move_count - opp_move_count);
+    *best_score = (float)(my_move_count - opp_move_count);
 }
 
 // During testing hasnt missed a 3 jump yet, however still has missed 2 jumps
 // In some cases it does a 1 jump instead of a 1 jump leading to a 2 jump. However it could be the algorithmn seeing that the 1 jump has a better score than the 2 jump. 
 // Changed to output only best_score, best_move is saved in best_move pointer passed to func 
-float minimax(uint64_t board, char colour, int depth, float alpha, float beta, Move* best_move) {
-    // Base case - if depth is 0 or no moves available, evaluate the board
+Move minimax(uint64_t* board_ptr, char colour, int depth, float alpha, float beta, float* best_score) {
     int move_count = 0;
     Move* moves;
-    float best_score;
-    uint64_t new_board;
-    int score;
-    Move move = {0, 0, 0};
+    Move best_move;
+    Move move;
+    float score = 0;
+    moves = malloc(30*sizeof(Move));
 
-    moves = malloc(20*sizeof(Move));
-    get_all_moves(board, colour, moves, &move_count);
-    if (moves != NULL) {
-	    free(moves);
+    get_all_moves(*board_ptr, colour, moves, &move_count);
+    // Base case - if depth is 0 or no moves available, evaluate the board
+    if ((depth == 0) | (move_count == 0)) {
+        evaluate(*board_ptr, colour, &score);
+        best_move.score = score;
+//	fprintf(stderr, "best move score %f\n", best_move.score);	
+	return best_move;
     }
-
-    if ((depth == 0) | (move_count = 0)) {
-        return evaluate(board, colour);
-    }
-
-    // best_move = None
 
     // For maximizing player (Black), we want to maximize the score
-    if (colour == 'B') {
-        best_score = -INFINITY;
+    else if (colour == 'B') {
+        *best_score = alpha;
         for (int i = 0; i < move_count; i++) {
             // Generate new board state after move
-            new_board = make_move(board, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
-            score = minimax(new_board, get_opponent(colour), depth - 1, alpha, beta, &move);
+            make_move(board_ptr, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
+            move = minimax(board_ptr, get_opponent(colour), depth - 1, alpha, beta, &score);
+	    // calling make_move again should undo move
+            make_move(board_ptr, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
             // Update best score and move if this move is better
-            if (score > best_score) {
-                best_score = score;
-                best_move->pc_ind = move.pc_ind;
-		best_move->shift = move.shift;
-		best_move->jumps = move.jumps;
+            if ((int)move.score > (int)*best_score) {
+	//    	fprintf(stderr, "move score %f best score %f for %c\n", move.score, *best_score, colour);
+                *best_score = move.score;
+                best_move.pc_ind = moves[i].pc_ind;
+		best_move.shift = moves[i].shift;
+		best_move.jumps = moves[i].jumps;
+		best_move.score = move.score;
+	    }
+	    else {
+		    move.score = *best_score;
+	    }
+            // Beta cutoff - minimizer would never allow this branch
+            if (beta <= *best_score) {
+                break;
 	    }
             // Alpha update - best score maximizer is guaranteed
-            alpha = fmaxf(alpha, best_score);
-            // Beta cutoff - minimizer would never allow this branch
-            if (beta <= alpha) {
-                break;
-	    }
+            alpha = fmaxf(alpha, *best_score);
 	}
-        return best_score;
     }
     // For minimizing player (White), we want to minimize the score
-    else {  // minimizing player
-        best_score = INFINITY;
+    else if (colour == 'W') {  // minimizing player
+        *best_score = beta;
         for (int i = 0; i < move_count; i++) {
             // Generate new board state after move
-            new_board = make_move(board, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
-            score = minimax(new_board, get_opponent(colour), depth - 1, alpha, beta, &move);
+            make_move(board_ptr, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
+            move = minimax(board_ptr, get_opponent(colour), depth - 1, alpha, beta, &score);
+            // calling make_move again should undo move
+	    make_move(board_ptr, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
             // Update best score and move if this move is better
-            if (score < best_score) {
-                best_score = score;
-                best_move->pc_ind = move.pc_ind;
-		best_move->shift = move.shift;
-		best_move->jumps = move.jumps;
+            if (move.score < *best_score) {
+	    	//fprintf(stderr, "move score %f best score %f for %c\n", move.score, *best_score, colour);
+                *best_score =move.score;
+                best_move.pc_ind = moves[i].pc_ind;
+		best_move.shift = moves[i].shift;
+		best_move.jumps = moves[i].jumps;
+		best_move.score = move.score;
 
 	    }
-            // Beta update - best score minimizer is guaranteed
-            beta = fminf(beta, best_score);
+	    else {
+		    move.score = *best_score;
+	    }
+	    
             // Alpha cutoff - maximizer would never allow this branch
-            if (beta <= alpha) {
+            if (alpha >= *best_score) {
                 break;
 	    }
+            // Beta update - best score minimizer is guaranteed
+            beta = fminf(beta, *best_score);
 	}
-        return best_score;
     }
+    if (moves != NULL) {
+	free(moves);
+	moves = NULL;
+    }
+    best_move.score = *best_score;
+    return best_move;
 }
 
-Move iterative_deepening(uint64_t board, char colour) {
+void iterative_deepening(uint64_t* board_ptr, char colour, Move* best_move) {
     // Start the timer
     time_t start_time, end_time; 
     double elapsed;
     time(&start_time);
-    Move best_move = {-1, -1, -1};
-    Move move = {-1, -1, -1};
+    Move move;
     int depth = 1;
+    float* search_score = malloc(sizeof(float));
+    float best_score = 0;
 
     // Keep searching deeper until we run out of time
     while (1) {
@@ -499,18 +521,30 @@ Move iterative_deepening(uint64_t board, char colour) {
             break;
 	}
         // Search at current depth
-        minimax(board, colour, depth, -INFINITY, INFINITY, &move);
-        
+	//move = malloc(sizeof(Move));
+        move = minimax(board_ptr, colour, depth, -INFINITY, INFINITY, search_score);
+	//fprintf(stderr, "score at depth %d is %f\n", depth, move.score);
+        if ((colour == 'B') && ((int)move.score > (int)best_score)) {
         // Only update best move if we found one
-        if (move.pc_ind >= 0) {
-            best_move.pc_ind = move.pc_ind;
-	    best_move.shift = move.shift;
-	    best_move.jumps = move.jumps;
+            best_move->pc_ind = move.pc_ind;
+	    best_move->shift = move.shift;
+	    best_move->jumps = move.jumps;
 	}
+	else if ((colour == 'W') && (int)move.score < (int)best_score) {
+            best_move->pc_ind = move.pc_ind;
+	    best_move->shift = move.shift;
+	    best_move->jumps = move.jumps;
+	}
+//	fprintf(stderr, "best move at depth %d is %d %d %d\n", depth, best_move->pc_ind, best_move->shift, best_move->jumps);
         depth++;
 
     }
-    return best_move;
+    if (search_score != NULL){
+	    free(search_score);
+	    search_score = NULL;
+    }
+    fprintf(stderr, "end of iter\n");
+    fprintf(stderr, "best move %d %d %d\n", best_move->pc_ind, best_move->shift, best_move->jumps);
 }
 
 void play_game(char* board, char colour) {
@@ -522,31 +556,31 @@ void play_game(char* board, char colour) {
     char* init_moves[3];
     int move_count = 0;
     char inp[7];
-    Move* moves; 
-    Move best_move;
+    Move* moves = NULL; 
+    Move* best_move = NULL;
     uint64_t bitboard = string_to_bitboard(board, COLOURS[0]) | string_to_bitboard(board, COLOURS[1]);
     if (is_initial_board(bitboard)){
         get_initial_moves(colour, init_moves);
 	start = terrible_square_index_find(init_moves[0][0], init_moves[0][1]);
-        bitboard = make_move(bitboard, start, 0, 0);
+        make_move(&bitboard, start, 0, 0);
         printf("%s\n", init_moves[0]);   // choose first opening move for now
     }
 
     while (1){
 	fgets(inp, sizeof(inp), stdin);
         start = terrible_square_index_find(inp[0], inp[1]); 
-        if (strlen(inp) > 2){
+        if (strlen(inp) > 3){
             end = terrible_square_index_find(inp[3], inp[4]);
             if (start > end){
                 // if start higher, move is either down or left
                 if ((start - end) >= 16){
 		// if diff >= 16, move is down
                     jumps = (start-end) / 16;
-                    bitboard = make_move(bitboard, start, -8, jumps);
+                    make_move(&bitboard, start, -8, jumps);
 		}
                 else{
                     jumps = (start-end) / 2;
-                    bitboard = make_move(bitboard, start, -1, jumps);
+                    make_move(&bitboard, start, -1, jumps);
 		}
 	    }
             else{
@@ -554,34 +588,45 @@ void play_game(char* board, char colour) {
                 if ((end - start) >= 16){
                     // if diff >= 16, move is up
                     jumps = (end-start) / 16;
-                    bitboard = make_move(bitboard, start, 8, jumps);
+                    make_move(&bitboard, start, 8, jumps);
 		}
                 else{
                     jumps = (end-start) / 2;
-                    bitboard = make_move(bitboard, start, 1, jumps);
+                    make_move(&bitboard, start, 1, jumps);
 		}
 	    }
 
 	}
         else{
-            bitboard = make_move(bitboard, start, 0, 0);
+            make_move(&bitboard, start, 0, 0);
 	}
 
-    	moves = malloc(20*sizeof(Move)); // Should never have move than 20 moves available (probably closer to 10)
-        get_all_moves(bitboard, colour, moves, &move_count);
-	for(int i = 0; i < move_count; i++) {
-	}
-        if (move_count > 0){
+    	//moves = malloc(20*sizeof(Move)); // Probably never have move than 20 moves available (probably closer to 10)
+        //get_all_moves(bitboard, colour, moves, &move_count);
+	//for(int i = 0; i < move_count; i++) {
+	//}
+        //if (move_count > 0){
             //bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps);
             //print_move(moves[0]);
-            best_move = iterative_deepening(bitboard, colour);
-            bitboard = make_move(bitboard, best_move.pc_ind, best_move.shift, best_move.jumps);
-            print_move(best_move);
+	    best_move = malloc(sizeof(Move));
+            iterative_deepening(&bitboard, colour, best_move);
+	    if (best_move != NULL) {
+            	make_move(&bitboard, best_move->pc_ind, best_move->shift, best_move->jumps);
+            	print_move(*best_move);
+		free(best_move);
+		best_move = NULL;
+	    }
+	    /*if (moves != NULL) {
 	    free(moves);
-	}
-        else{
+	    moves = NULL;
+	    }*/
+	//}
+	    else {
             printf("I lose\n");
-	    free(moves);
+	    //if (moves != NULL) {
+	    //free(moves);
+	    //moves = NULL;
+	    //}
             break;
 	}
     }

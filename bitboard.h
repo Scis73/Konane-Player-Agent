@@ -12,7 +12,7 @@ extern const char COLOURS[2];
 // DeBrujin numbers for finding least significant bit
 extern const int DB_INDEX[64];
 
-#define THINKING_TIME 10
+#define THINKING_TIME 1
 // Location of all squares that can have white pieces
 // Can get all black pieces on a board by using &
 #define WHITE_SQUARES 0xAA55AA55AA55AA55ULL
@@ -49,6 +49,8 @@ typedef struct {
     int pc_ind;
     int shift;
     int jumps;
+    // flag to show this move leads to a loss
+    float score;
 
 } Move; 
 
@@ -60,7 +62,7 @@ void print_move(Move);
 uint64_t string_to_bitboard(char*, char);
 int lsb(uint64_t);
 uint64_t square_bb(int);
-uint64_t make_move(uint64_t, int, int, int);
+void make_move(uint64_t*, int, int, int);
 uint64_t right_attacks(uint64_t, char);
 uint64_t left_attacks(uint64_t, char);
 uint64_t up_attacks(uint64_t, char);
@@ -70,9 +72,9 @@ int is_initial_board(uint64_t);
 void get_initial_moves(char, char**);
 int terrible_square_index_find(char, char);
 char get_opponent(char);
-float evaluate(uint64_t, char);
-float minimax(uint64_t, char, int, float, float, Move*);
-Move iterative_deepening(uint64_t, char);
+void evaluate(uint64_t, char, float*);
+Move minimax(uint64_t*, char, int, float, float, float*);
+void iterative_deepening(uint64_t*, char, Move*);
 void play_game(char*, char);
 
 #endif
