@@ -3,6 +3,8 @@
 #include<stdint.h>
 #include<string.h>
 #include<inttypes.h>
+#include<math.h>
+#include<time.h>
 #include "bitboard.h"
 const char COLOURS[] = {'B', 'W'};
 
@@ -268,11 +270,9 @@ int multi_jumps(uint64_t board_self, uint64_t board_opp, int start_idx, int shif
             
     return num_jumps;
 }
-int get_all_moves_count = 0;
 void get_all_moves(uint64_t board, char colour, Move* moves, int* size){
 	
     // Generate all moves for given colour and stores them in a list
-    get_all_moves_count++;
     const int shifts[4] = {1, -1, 8, -8};
     uint64_t board_self;
     uint64_t board_opp;
@@ -378,6 +378,141 @@ int terrible_square_index_find(char column, char row){
 
 }
 
+char get_opponent(char colour) {
+    // Returns opponent colour
+    if (colour == 'W') {
+	    return 'B';
+    }
+    else return 'W';
+}
+// in 5 tests: it beat the randomkonaneplayer 5-0, 3 as black, 2 as white
+// need further tweaking still missing most optimal moves - Andre 
+float evaluate(uint64_t board, char colour) {
+    // Evaluation function based on mobility heuristic from Ernst (1995)
+    // Simple evaluation function that just counts number of moves available to each player and returns difference
+    int my_move_count = 0;
+    int opp_move_count = 0;
+    Move* my_moves;
+    Move* opp_moves;
+    
+    my_moves = malloc(20*sizeof(Move));
+    get_all_moves(board, colour, my_moves, &my_move_count);
+    if (my_moves != NULL) {
+	    free(my_moves);
+    }
+    opp_moves = malloc(20*sizeof(Move));
+    get_all_moves(board, get_opponent(colour), opp_moves, &opp_move_count);
+    if (opp_moves != NULL) {
+	    free(opp_moves);
+    }
+    return (float)(my_move_count - opp_move_count);
+}
+
+// During testing hasnt missed a 3 jump yet, however still has missed 2 jumps
+// In some cases it does a 1 jump instead of a 1 jump leading to a 2 jump. However it could be the algorithmn seeing that the 1 jump has a better score than the 2 jump. 
+// Changed to output only best_score, best_move is saved in best_move pointer passed to func 
+float minimax(uint64_t board, char colour, int depth, float alpha, float beta, Move* best_move) {
+    // Base case - if depth is 0 or no moves available, evaluate the board
+    int move_count = 0;
+    Move* moves;
+    float best_score;
+    uint64_t new_board;
+    int score;
+    Move move = {0, 0, 0};
+
+    moves = malloc(20*sizeof(Move));
+    get_all_moves(board, colour, moves, &move_count);
+    if (moves != NULL) {
+	    free(moves);
+    }
+
+    if ((depth == 0) | (move_count = 0)) {
+        return evaluate(board, colour);
+    }
+
+    // best_move = None
+
+    // For maximizing player (Black), we want to maximize the score
+    if (colour == 'B') {
+        best_score = -INFINITY;
+        for (int i = 0; i < move_count; i++) {
+            // Generate new board state after move
+            new_board = make_move(board, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
+            score = minimax(new_board, get_opponent(colour), depth - 1, alpha, beta, &move);
+            // Update best score and move if this move is better
+            if (score > best_score) {
+                best_score = score;
+                best_move->pc_ind = move.pc_ind;
+		best_move->shift = move.shift;
+		best_move->jumps = move.jumps;
+	    }
+            // Alpha update - best score maximizer is guaranteed
+            alpha = fmaxf(alpha, best_score);
+            // Beta cutoff - minimizer would never allow this branch
+            if (beta <= alpha) {
+                break;
+	    }
+	}
+        return best_score;
+    }
+    // For minimizing player (White), we want to minimize the score
+    else {  // minimizing player
+        best_score = INFINITY;
+        for (int i = 0; i < move_count; i++) {
+            // Generate new board state after move
+            new_board = make_move(board, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
+            score = minimax(new_board, get_opponent(colour), depth - 1, alpha, beta, &move);
+            // Update best score and move if this move is better
+            if (score < best_score) {
+                best_score = score;
+                best_move->pc_ind = move.pc_ind;
+		best_move->shift = move.shift;
+		best_move->jumps = move.jumps;
+
+	    }
+            // Beta update - best score minimizer is guaranteed
+            beta = fminf(beta, best_score);
+            // Alpha cutoff - maximizer would never allow this branch
+            if (beta <= alpha) {
+                break;
+	    }
+	}
+        return best_score;
+    }
+}
+
+Move iterative_deepening(uint64_t board, char colour) {
+    // Start the timer
+    time_t start_time, end_time; 
+    double elapsed;
+    time(&start_time);
+    Move best_move = {-1, -1, -1};
+    Move move = {-1, -1, -1};
+    int depth = 1;
+
+    // Keep searching deeper until we run out of time
+    while (1) {
+        // Check if we have enough time to search another depth
+	time(&end_time);
+        elapsed = difftime(end_time, start_time);
+        if (elapsed >= THINKING_TIME) {
+            break;
+	}
+        // Search at current depth
+        minimax(board, colour, depth, -INFINITY, INFINITY, &move);
+        
+        // Only update best move if we found one
+        if (move.pc_ind >= 0) {
+            best_move.pc_ind = move.pc_ind;
+	    best_move.shift = move.shift;
+	    best_move.jumps = move.jumps;
+	}
+        depth++;
+
+    }
+    return best_move;
+}
+
 void play_game(char* board, char colour) {
     // Automatically plays game vs other agents using the drivercheck.pl script
     
@@ -388,6 +523,7 @@ void play_game(char* board, char colour) {
     int move_count = 0;
     char inp[7];
     Move* moves; 
+    Move best_move;
     uint64_t bitboard = string_to_bitboard(board, COLOURS[0]) | string_to_bitboard(board, COLOURS[1]);
     if (is_initial_board(bitboard)){
         get_initial_moves(colour, init_moves);
@@ -436,8 +572,11 @@ void play_game(char* board, char colour) {
 	for(int i = 0; i < move_count; i++) {
 	}
         if (move_count > 0){
-            bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps);
-            print_move(moves[0]);
+            //bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps);
+            //print_move(moves[0]);
+            best_move = iterative_deepening(bitboard, colour);
+            bitboard = make_move(bitboard, best_move.pc_ind, best_move.shift, best_move.jumps);
+            print_move(best_move);
 	    free(moves);
 	}
         else{
@@ -551,4 +690,3 @@ def find_magics():
 
 find_magics()
 	*/
-

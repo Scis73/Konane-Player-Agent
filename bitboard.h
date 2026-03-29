@@ -3,7 +3,7 @@
 #include<stdint.h>
 #include<string.h>
 #include<inttypes.h>
-
+#include<math.h>
 #ifndef BITBOARD_H
 #define BITBOARD_H
 
@@ -12,6 +12,7 @@ extern const char COLOURS[2];
 // DeBrujin numbers for finding least significant bit
 extern const int DB_INDEX[64];
 
+#define THINKING_TIME 10
 // Location of all squares that can have white pieces
 // Can get all black pieces on a board by using &
 #define WHITE_SQUARES 0xAA55AA55AA55AA55ULL
@@ -68,6 +69,10 @@ int multi_jumps(uint64_t, uint64_t, int, int);
 int is_initial_board(uint64_t);
 void get_initial_moves(char, char**);
 int terrible_square_index_find(char, char);
+char get_opponent(char);
+float evaluate(uint64_t, char);
+float minimax(uint64_t, char, int, float, float, Move*);
+Move iterative_deepening(uint64_t, char);
 void play_game(char*, char);
 
 #endif
