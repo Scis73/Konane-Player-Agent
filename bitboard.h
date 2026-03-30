@@ -13,6 +13,11 @@ extern const char COLOURS[2];
 extern const int DB_INDEX[64];
 
 #define THINKING_TIME 1
+// size of move arrays
+#define MAX_MOVES 30
+
+// max depth of iterative deepening, probably won't come close to this but stops any weirdness hopefully 
+#define MAX_DEPTH 30
 // Location of all squares that can have white pieces
 // Can get all black pieces on a board by using &
 #define WHITE_SQUARES 0xAA55AA55AA55AA55ULL
@@ -74,7 +79,14 @@ int terrible_square_index_find(char, char);
 char get_opponent(char);
 void evaluate(uint64_t, char, float*);
 Move minimax(uint64_t*, char, int, float, float, float*);
-void iterative_deepening(uint64_t*, char, Move*);
+void iterative_deepening(uint64_t*, char, Move*, int*);
+int popcount(uint64_t);
+int count_pieces(uint64_t, char);
+int count_safe_moves(uint64_t, char, Move*, Move*, int, int);
+int classify_pieces(uint64_t, char);
+int shape_score(uint64_t, char);
+void hely_evaluate(uint64_t, char, float*); // Hely eval
+// Move choose_best_move(uint64_t, char);
 void play_game(char*, char);
 
 #endif
