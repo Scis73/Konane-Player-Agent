@@ -447,6 +447,7 @@ def play_game(board, colour):
         #return
 
     while True:
+        print_board_with_colours(bitboard)
         inp = input("")
         start = squares.index(inp[0:2])
         if (len(inp) > 2):
@@ -473,6 +474,7 @@ def play_game(board, colour):
         else:
             bitboard = make_move(bitboard, start)
 
+<<<<<<< HEAD
         moves = get_all_moves(bitboard, colour)
         if moves:
             #bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
@@ -480,6 +482,12 @@ def play_game(board, colour):
             best_move = iterative_deepening(bitboard, colour)
             bitboard = make_move(bitboard, best_move.pc_ind, best_move.shift, best_move.jumps)
             best_move.print_move()
+=======
+        best = choose_best_move(bitboard, colour)
+        if best:
+            bitboard = make_move(bitboard, best.pc_ind, best.shift, best.jumps)
+            best.print_move()
+>>>>>>> Hely
         else:
             print()
             break
@@ -487,31 +495,70 @@ def play_game(board, colour):
 def demo(board, colour):
     # For lab demo, supposed to output 1 move for each player
     bitboard = string_to_bitboard(board, colour) | string_to_bitboard(board, colours[(colours.index(colour)+1) % 2])
-    for i in range(2):
-        if is_initial_board(bitboard):
-            moves = get_initial_moves(colour)
-            bitboard = make_move(bitboard, squares.index(moves[0]))
-            print(moves[0])   # choose first opening move for now
-        else:
-            moves = get_all_moves(bitboard, colour)
-            if(moves):
-                moves[0].print_move()
+    if is_initial_board(bitboard):
+        moves = get_initial_moves(colour)
+        bitboard = make_move(bitboard, squares.index(moves[0]))
+        print(moves[0])   # choose first opening move for now
+    else:
+        best = choose_best_move(bitboard, colour)
+        if best:
+            bitboard = make_move(bitboard, best.pc_ind, best.shift, best.jumps)
+            best.print_move()
 
                 # Not sure if supposed to get both moves from same board or get second move from updated board
                 # Use this if we need to update board inbetween moves
                 #bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps)
-            else:
-                print("No moves found for", colour)
+        else:
+            print("No moves found for", colour)
+            return
             
-        colour = colours[(colours.index(colour)+1) % 2]
+    colour = colours[(colours.index(colour)+1) % 2]
+    print_board_with_colours(bitboard)
+    moves = get_all_moves(bitboard, colour)
+    if is_initial_board(bitboard):
+        moves = get_initial_moves(colour)
+    if(not moves):
+        print("No moves found for", colour)
+        return
+    inp = input('')
+    start = squares.index(inp[0:2])
+    if (len(inp) > 2):
+        end = squares.index(inp[3:])
+        if start > end:
+            # if start higher, move is either down or left
+            if ((start - end) >= 16):
+                # if diff >= 16, move is down
+                jumps = (start-end) // 16
+                bitboard = make_move(bitboard, start, -8, jumps)
+            else:
+                jumps = (start-end) // 2
+                bitboard = make_move(bitboard, start, -1, jumps)
+        else:
+            # if start lower, move is either up or right
+            if ((end - start) >= 16):
+                # if diff >= 16, move is down
+                jumps = (end-start) // 16
+                bitboard = make_move(bitboard, start, 8, jumps)
+            else:
+                jumps = (end-start) // 2
+                bitboard = make_move(bitboard, start, 1, jumps)
+
+    else:
+        bitboard = make_move(bitboard, start)
+    print_board_with_colours(bitboard)
 
 
 
 def main():
     board, colour = parse_args(sys.argv)
     play_game(board,colour)
+<<<<<<< HEAD
     ##demo(board, colour)
     ##print(board)
+=======
+    #demo(board, colour)
+    #print(board)
+>>>>>>> Hely
     #print_board_with_colours(bitboard)
     #print(squares[lsb(bitboard)])
 
@@ -564,8 +611,7 @@ def main():
     else:
         print(f"Failure: Should find 4 moves, found {len(moves)}")
     '''
-#if __name__ == "__main__":
- #   main()
+
 
 # Testing new stuff
 
@@ -606,6 +652,190 @@ class BitBoard():
 
 rows = [row1, row2, row3, row4, row5, row6, row7, row8]
 columns = [columnA, columnB, columnC, columnD, columnE, columnF, columnG, columnH]
+
+# ================== Heuristic Evaluation
+# Plan: move-count (mobility), safe moves (combinatorial game theory),
+# and shape-based evaluation (Ernst 1995, Uiterwijk 2022).
+
+def count_pieces(board, colour):
+    if colour == "B":
+        return bin(board & black_squares).count('1')
+    else:
+        return bin(board & white_squares).count('1')
+
+
+# ---- Component: Safe Moves ------------------------------------------------
+# A move is "safe" if it cannot be prevented by any single opponent response.
+# In Konane the only way the opponent invalidates one of our jumps is by
+# moving the piece we intend to jump (our target at `mid`) away before we act.
+# We simulate every opponent reply and check that our first jump is still legal.
+
+def count_safe_moves(board, colour, my_moves, opp_moves):
+    if not opp_moves:
+        return len(my_moves)   # nothing opponent can do — all moves are safe
+
+    safe_count = 0
+    for move in my_moves:
+        start = move.pc_ind
+        mid   = start + move.shift
+        end   = start + 2 * move.shift
+
+        # Basic bounds / wrap guard (mirrors multi_jumps logic)
+        if not (0 <= end <= 63):
+            continue
+        if abs((start % 8) - (end % 8)) > 2:
+            continue
+
+        is_safe = True
+        for opp_move in opp_moves:
+            after = make_move(board, opp_move.pc_ind, opp_move.shift, opp_move.jumps)
+            # Our jump requires: our piece at start, any piece at mid, end empty
+            our_piece_gone  = not ((after >> start) & 1)
+            mid_piece_gone  = not ((after >> mid)   & 1)
+            end_now_blocked =      (after >> end)   & 1
+            if our_piece_gone or mid_piece_gone or end_now_blocked:
+                is_safe = False
+                break
+        if is_safe:
+            safe_count += 1
+
+    return safe_count
+
+
+# ---- Component: Shape-based evaluation ------------------------------------
+# Based on Ernst (1995) and Uiterwijk (2022): pieces are classified by their
+# structural role and assigned weights accordingly.
+#
+# Dead piece  — no opponent neighbour in any direction; can NEVER jump again.
+#               A liability: it occupies a square but contributes zero mobility.
+#
+# Contested piece — has at least one opponent neighbour; lives in a "battle
+#                   zone" and can potentially jump (or be jumped over).
+#
+# We reward having fewer dead pieces than the opponent and more contested pieces.
+
+def classify_pieces(board, colour):
+    """
+    Returns (dead_count, contested_count) for `colour`.
+    A piece is dead if it has no opponent neighbour in any of the 4 directions.
+    """
+    if colour == "B":
+        my_bb  = board & black_squares
+        opp_bb = board & white_squares
+    else:
+        my_bb  = board & white_squares
+        opp_bb = board & black_squares
+
+    dead = 0
+    contested = 0
+    temp = my_bb
+    while temp:
+        idx  = lsb(temp)
+        temp &= ~square_bb(idx)
+        col  = idx % 8
+        row  = idx // 8
+
+        has_opp_neighbour = False
+        if col < 7 and ((opp_bb >> (idx + 1)) & 1): has_opp_neighbour = True
+        if col > 0 and ((opp_bb >> (idx - 1)) & 1): has_opp_neighbour = True
+        if row < 7 and ((opp_bb >> (idx + 8)) & 1): has_opp_neighbour = True
+        if row > 0 and ((opp_bb >> (idx - 8)) & 1): has_opp_neighbour = True
+
+        if has_opp_neighbour:
+            contested += 1
+        else:
+            dead += 1
+
+    return dead, contested
+
+
+def shape_score(board, colour):
+    """
+    Shape advantage = (opp_dead - my_dead) + (my_contested - opp_contested).
+    More dead opponent pieces and more of our own pieces in battle zones = better.
+    """
+    opp_colour = "W" if colour == "B" else "B"
+    my_dead,  my_contested  = classify_pieces(board, colour)
+    opp_dead, opp_contested = classify_pieces(board, opp_colour)
+    return (opp_dead - my_dead) + (my_contested - opp_contested)
+
+
+# ---- Combined evaluator ---------------------------------------------------
+
+def evaluate(board, colour):
+    """
+    Heuristic score from `colour`'s perspective (higher = better).
+
+    1. Terminal detection  — exact win/loss, dominates all other terms.
+    2. Mobility            — move-count advantage (primary driver in Konane).
+    3. Jump depth          — total jump-chain length advantage.
+    4. Safe moves          — moves the opponent cannot prevent on their next turn.
+    5. Shape               — dead-piece penalty + contested-piece bonus (Ernst/Uiterwijk).
+    6. Piece delta         — minor raw-count tiebreaker.
+
+    Weights reflect the relative importance of each signal.
+    """
+    opp_colour = "W" if colour == "B" else "B"
+
+    my_moves  = get_all_moves(board, colour)
+    opp_moves = get_all_moves(board, opp_colour)
+
+    my_move_count  = len(my_moves)
+    opp_move_count = len(opp_moves)
+
+    # --- Terminal ---
+    if my_move_count == 0:
+        return -10000
+    if opp_move_count == 0:
+        return  10000
+
+    # --- Mobility ---
+    mobility = my_move_count - opp_move_count
+
+    # --- Jump depth ---
+    my_jumps  = sum(m.jumps for m in my_moves)
+    opp_jumps = sum(m.jumps for m in opp_moves)
+    depth = my_jumps - opp_jumps
+
+    # --- Safe moves ---
+    my_safe  = count_safe_moves(board, colour,     my_moves,  opp_moves)
+    opp_safe = count_safe_moves(board, opp_colour, opp_moves, my_moves)
+    safe = my_safe - opp_safe
+
+    # --- Shape (Ernst/Uiterwijk) ---
+    shape = shape_score(board, colour)
+
+    # --- Piece delta ---
+    pieces = count_pieces(board, colour) - count_pieces(board, opp_colour)
+
+    return (3 * mobility
+          + 2 * depth
+          + 2 * safe
+          + 1 * shape
+          + 1 * pieces)
+
+
+def choose_best_move(board, colour):
+    """
+    Greedy one-ply lookahead using `evaluate`.
+    Simulates every legal move, scores the resulting board, returns the best.
+    """
+    moves = get_all_moves(board, colour)
+    if not moves:
+        return None
+
+    best_move  = moves[0]
+    best_score = float('-inf')
+
+    for move in moves:
+        new_board = make_move(board, move.pc_ind, move.shift, move.jumps)
+        score = evaluate(new_board, colour)
+        if score > best_score:
+            best_score = score
+            best_move  = move
+
+    return best_move
+
 class Square():
     def __init__(self, square_ind):
         self.s = square_ind
@@ -633,21 +863,16 @@ def relevant_blockers(square):
         mask &= white_squares
 
     blockers = 0
-    print_board_with_colours(mask)
     # laziest way possible to do this
     # technically doesn't need to be efficient as long as it can be done in 10 secs at start
     for shift in shifts:
         landings, jumps = multi_jumps(mask, mask, square.s, shift)
-        print(landings)
         for landing in landings:
             blockers |= square_bb(landing)
             blockers |= square_bb(landing - shift)
 
     return blockers
 
-square = Square(1)
-blockers = relevant_blockers(square)
-print_board(blockers)
 def find_magics():
     for i in range(len(squares)):
         mask = relevant_blockers(i)
@@ -658,4 +883,5 @@ if __name__ == "__main__":
     # Uncomment to test magic bitboard generation:
     # square = Square(1)
     # blockers = relevant_blockers(square)
+    # print_board(blockers)
     # print_board(blockers)
