@@ -402,17 +402,33 @@ void evaluate(uint64_t board, char colour, float* best_score) {
     Move* my_moves;
     Move* opp_moves;
     
-    my_moves = malloc(30*sizeof(Move));
+    my_moves = malloc(MAX_MOVES*sizeof(Move));
     get_all_moves(board, colour, my_moves, &my_move_count);
     if (my_moves != NULL) {
 	    free(my_moves);
     }
-    opp_moves = malloc(30*sizeof(Move));
+    opp_moves = malloc(MAX_MOVES*sizeof(Move));
     get_all_moves(board, get_opponent(colour), opp_moves, &opp_move_count);
     if (opp_moves != NULL) {
 	    free(opp_moves);
     }
-    *best_score = (float)(my_move_count - opp_move_count);
+
+    if (colour == 'B') {
+    	if (!my_move_count) {
+		*best_score = -10000;
+		//fprintf(stderr, "score %f\n", *best_score);
+		return;
+	}
+	*best_score = (float)(my_move_count - opp_move_count);
+	return;
+    }
+    if (!my_move_count) {
+	*best_score = 10000;
+	return;
+    }
+    *best_score = (float)(opp_move_count - my_move_count);
+
+
 }
 
 // During testing hasnt missed a 3 jump yet, however still has missed 2 jumps
@@ -424,7 +440,7 @@ Move minimax(uint64_t* board_ptr, char colour, int depth, float alpha, float bet
     Move best_move;
     Move move;
     float score = 0;
-    moves = malloc(30*sizeof(Move));
+    moves = malloc(MAX_MOVES*sizeof(Move));
 
     get_all_moves(*board_ptr, colour, moves, &move_count);
     // Base case - if depth is 0 or no moves available, evaluate the board
@@ -500,6 +516,7 @@ Move minimax(uint64_t* board_ptr, char colour, int depth, float alpha, float bet
 	moves = NULL;
     }
     best_move.score = *best_score;
+    //fprintf(stderr, "best move ind %d\n", best_move.pc_ind);
     return best_move;
 }
 
@@ -511,7 +528,8 @@ void iterative_deepening(uint64_t* board_ptr, char colour, Move* best_move, int*
     Move move;
     int depth = 1;
     float* search_score = malloc(sizeof(float));
-    float best_score = 0;
+    float best_black = -INFINITY;
+    float best_white = INFINITY;
 
     // Keep searching deeper until we run out of time or we reach max depth
     while (depth <= MAX_DEPTH) {
@@ -525,20 +543,22 @@ void iterative_deepening(uint64_t* board_ptr, char colour, Move* best_move, int*
 	//move = malloc(sizeof(Move));
         move = minimax(board_ptr, colour, depth, -INFINITY, INFINITY, search_score);
 	//fprintf(stderr, "score at depth %d is %f\n", depth, move.score);
-        if ((colour == 'B') && ((int)move.score > (int)best_score)) {
+        if ((colour == 'B') && (move.score > best_black)) {
         // Only update best move if we found one
             best_move->pc_ind = move.pc_ind;
 	    best_move->shift = move.shift;
 	    best_move->jumps = move.jumps;
+	    best_black = move.score;
+       	  //  fprintf(stderr, "best move at depth %d is %d %d %d\n", depth, best_move->pc_ind, best_move->shift, best_move->jumps);
 	    *move_found = 1;
 	}
-	else if ((colour == 'W') && (int)move.score < (int)best_score) {
+	else if ((colour == 'W') && (move.score < best_white)) {
             best_move->pc_ind = move.pc_ind;
 	    best_move->shift = move.shift;
 	    best_move->jumps = move.jumps;
+	    best_white = move.score;
 	    *move_found = 1;
 	}
-//	fprintf(stderr, "best move at depth %d is %d %d %d\n", depth, best_move->pc_ind, best_move->shift, best_move->jumps);
         depth++;
 
     }
@@ -915,13 +935,19 @@ void hely_evaluate(uint64_t board, char colour, float* score) {
 
     // --- Terminal ---
     if (!my_move_count) {
+	if (colour == 'B') {
         *score = -10000; 
 	return;
+	}
+	*score = 10000;
+	return;
     }
+    /*
     if (!opp_move_count) {
         *score = 10000;
 	return;
     }
+    */
     // --- Mobility ---
     int mobility = my_move_count - opp_move_count;
 
@@ -961,6 +987,9 @@ void hely_evaluate(uint64_t board, char colour, float* score) {
           + 2 * safe
           + 1 * shape
           + 1 * pieces);
+    if (colour == 'W') {
+	    *score = *score * -1;
+    }
 }
 
 // Not sure if we need this
