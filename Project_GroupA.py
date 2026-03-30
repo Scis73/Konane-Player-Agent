@@ -653,3 +653,9 @@ def find_magics():
         mask = relevant_blockers(i)
 
 
+if __name__ == "__main__":
+    main()
+    # Uncomment to test magic bitboard generation:
+    # square = Square(1)
+    # blockers = relevant_blockers(square)
+    # print_board(blockers)
