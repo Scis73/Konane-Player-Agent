@@ -528,8 +528,8 @@ void iterative_deepening(uint64_t* board_ptr, char colour, Move* best_move, int*
     Move move;
     int depth = 1;
     float* search_score = malloc(sizeof(float));
-    float best_black = -INFINITY;
-    float best_white = INFINITY;
+    float best_black = -10000;
+    float best_white = 10000;
 
     // Keep searching deeper until we run out of time or we reach max depth
     while (depth <= MAX_DEPTH) {
@@ -632,7 +632,7 @@ void play_game(char* board, char colour) {
             //bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps);
             //print_move(moves[0]);
 	    best_move = malloc(sizeof(Move));
-	    move_found = 0;
+	    move_found = 0; // flag whether move was found, if not end program
             iterative_deepening(&bitboard, colour, best_move, &move_found);
 	    if (!move_found) {
 	        printf("Group A loses\n");

@@ -12,7 +12,7 @@ extern const char COLOURS[2];
 // DeBrujin numbers for finding least significant bit
 extern const int DB_INDEX[64];
 
-#define THINKING_TIME 1
+#define THINKING_TIME 10
 // size of move arrays
 #define MAX_MOVES 30
 
