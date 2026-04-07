@@ -6,8 +6,11 @@
 #include<math.h>
 #include<time.h>
 #include "bitboard.h"
+
+// Allows us to get a colour using index if needed
 const char COLOURS[] = {'B', 'W'};
 
+// Used for lsb function
 const int DB_INDEX[64] = {
 	 0,  1, 48,  2, 57, 49, 28,  3, 
 	61, 58, 50, 42, 38, 29, 17,  4,
@@ -33,6 +36,7 @@ const char* SQUARES[] = {
 
 // ============ print functions for debugging
 
+
 void print_board(uint64_t board){
     // Prints 8x8 board using just 1s and 0s
     int rows[8][8];
@@ -53,7 +57,6 @@ void print_board(uint64_t board){
 }
 
 
-
 void print_board_with_colours(uint64_t board){
     // Prints 8x8 board with colour of each piece labeled, '.' for empty spaces
     int rows[8][8];
@@ -64,8 +67,7 @@ void print_board_with_colours(uint64_t board){
             rows[i][j] = temp_board & 1;
             temp_board = temp_board >> 1;
 	}
-    }
-    
+    }    
     for(int k = 7; k >= 0; k--){
         for(int l = 0; l < 8; l++){
             if (rows[k][l] == 1){
@@ -84,19 +86,22 @@ void print_board_with_colours(uint64_t board){
 }
 
 
+void print_move(Move move){
+        if (move.jumps == 0){
+            printf("%s\n", SQUARES[move.pc_ind]);
+	}
+        else{
+            printf("%s-%s\n", SQUARES[move.pc_ind], SQUARES[move.pc_ind + (move.shift*move.jumps*2)]);
+	}
+}
+
+
 // ================== Helper functions
 
 
 uint64_t string_to_bitboard(char* string, char color_to_match){
     // Convert string representation of board ("BWBWBW...") to bitboard
     uint64_t bitboard = 0;
-
-    // Converting using positional method, probably a more efficient way to do this
-    // for i in range(len(rev_string)):
-    //     if (rev_string[i] == "B" or rev_string[i] == "W"):
-    //         print(i)
-    //         bitboard = bitboard + (2**i)
-    // print(bitboard)
 
     for(int i = 63; i >= 0; i--){
         if (string[63-i] == color_to_match){
@@ -106,53 +111,56 @@ uint64_t string_to_bitboard(char* string, char color_to_match){
     return bitboard;
 }
 
+
 int lsb(uint64_t board){
     // Get index of least significat 1 bit on board
+    // Code adapted from chessprogramming.org/BitScan
     const uint64_t debrujin = 0x03f79d71b4cb0a89ULL;
     int index;
     index = DB_INDEX[((board & (0-board)) * debrujin) >> 58];
     return index;
 }
 
+
+int popcount(uint64_t board) {
+	// counts number of 1s in bitboard
+	int count = 0;
+	uint64_t temp = board;
+	while (temp) {
+		temp ^= square_bb(lsb(temp));
+		count++;
+	}
+	return count;
+}
+
+
 uint64_t square_bb(int s){
     // Make bitboard containing only piece in square of index s
     return 1ULL << s;
 }
 
-void print_move(Move move){
-        if (move.jumps == 0){
-            printf("%s\n", SQUARES[move.pc_ind]);
-	}
-        else{
-            printf("%s-%s\n", SQUARES[move.pc_ind], SQUARES[move.pc_ind + (move.shift*move.jumps*2)]);
-	}
-}
-// TODO change return type back if this doesn't work
+
 void make_move(uint64_t* board, int start, int direction, int jumps) {
-    // Makes board with new state after a move
+    // Updates board at given board pointer by performing a move
+    // Can also undo a move by repeating it, would be clearer to have separate function for undoing moves but oh well
     // start is index of piece performing move
     // directions: left = -1, right = 1, up = 8, down = -8
-    uint64_t new_board;
     uint64_t changes;
     // if jumps is 0, assume initial removal and remove just one piece
     if (jumps == 0){
-	new_board = *board ^ square_bb(start);
-	*board = new_board;
-        //return board ^ square_bb(start);
+	changes = square_bb(start);
     }
-
     // Make new board containing all squares changed by move (start and end pos of attacker, captured pieces)
     else {
     	changes = square_bb(start) | square_bb(start + (direction * jumps * 2));
     	for(int i = 0; i < jumps; i++){
             changes |= square_bb(start + direction + (direction * i * 2));
     	}
-    // XOR original board with changes to remove captured pieces and attacker from start pos, add attacker to end pos
-    *board = *board ^ changes; // new version
-    //return board ^ changes;
-    }
-}
 
+    // XOR original board with changes to remove captured pieces and attacker from start pos, add attacker to end pos
+    }
+    *board = *board ^ changes;
+}
 
 
 // Could probably rewrite all 4 direction attack functions into single function using same method as multijump func
@@ -175,6 +183,7 @@ uint64_t right_attacks(uint64_t board, char colour) {
     return attackers;
 }
 
+
 uint64_t left_attacks(uint64_t board, char colour) {
     // Finds all pieces capable of moving right to left for given board and colour
     uint64_t attackers;
@@ -194,6 +203,7 @@ uint64_t left_attacks(uint64_t board, char colour) {
 
     return attackers;
 }
+
 
 uint64_t up_attacks(uint64_t board, char colour) {
     // Finds all pieces capable of moving up from given board and colour
@@ -215,6 +225,7 @@ uint64_t up_attacks(uint64_t board, char colour) {
     return attackers;
 }
 
+
 uint64_t down_attacks(uint64_t board, char colour) {
     // Finds all pieces capable of moving left to right for given board and colour
     uint64_t attackers;
@@ -235,10 +246,9 @@ uint64_t down_attacks(uint64_t board, char colour) {
     return attackers;
 }
 
-// TODO change to only output 1 value and/or add pointer to input to get 2nd value
+
 int multi_jumps(uint64_t board_self, uint64_t board_opp, int start_idx, int shift) {
-    // valid_landings = []
-    // Added counter for total number of jumps found to work with other funcs, could streamline this later - Steve
+    // Gets all moves in direction of shift for piece at start_idx
     int num_jumps = 0;
     int current_pos = start_idx;
     uint64_t all_pieces = board_self | board_opp;
@@ -263,10 +273,9 @@ int multi_jumps(uint64_t board_self, uint64_t board_opp, int start_idx, int shif
 	}
         // Check if mid has opponent and end is empty
         if (((board_opp >> mid) & 1) && !((all_pieces >> end) & 1)){
-            //valid_landings.append(end)
             num_jumps++;
             // Update position to check for a further jump
-            current_pos = end ;
+            current_pos = end;
 	}
         else{
             break;
@@ -275,9 +284,10 @@ int multi_jumps(uint64_t board_self, uint64_t board_opp, int start_idx, int shif
             
     return num_jumps;
 }
+
+
 void get_all_moves(uint64_t board, char colour, Move* moves, int* size){
-	
-    // Generate all moves for given colour and stores them in a list
+    // Generate all moves for given colour and stores them in an array
     const int shifts[4] = {1, -1, 8, -8};
     uint64_t board_self;
     uint64_t board_opp;
@@ -295,12 +305,13 @@ void get_all_moves(uint64_t board, char colour, Move* moves, int* size){
         board_self = board & WHITE_SQUARES;
         board_opp = board & BLACK_SQUARES;
     }
+
     // Could change these to take board_self and board_opp, currently doing the same thing twice
     attackers = right_attacks(board, colour);
     attackers |= left_attacks(board, colour);
     attackers |= up_attacks(board, colour);
     attackers |= down_attacks(board, colour);
-    //moves = malloc(20*sizeof(Move));
+    
     while (attackers > 0) {
         // Get index of first attacker
         attacker = lsb(attackers);
@@ -316,13 +327,14 @@ void get_all_moves(uint64_t board, char colour, Move* moves, int* size){
 	    }
 
         // Remove attacker from attackers
-	    }   
+	}   
         attackers ^= square_bb(attacker);
     }
 }    
 
+
 int is_initial_board(uint64_t board){
-    // Returns True if there are no empty squares or only 1 empty square
+    // Returns 1 if there are no empty squares or only 1 empty square
     uint64_t full_board = 0xFFFFFFFFFFFFFFFFULL;
     uint64_t boards[3]; 
     boards[0] = full_board;
@@ -337,9 +349,9 @@ int is_initial_board(uint64_t board){
     return found;
 }
 
-// Returns list of valid opening moves, which are just the 4 pieces in the middle of the board that can be removed
+
 void get_initial_moves(char colour, char** moves){
-    // Allowed opening removals
+    // Returns list of valid opening moves, which are just the 4 pieces in the middle of the board that can be removed
     if (colour == 'B'){
         moves[0] = "D5";
         moves[1] = "E4";
@@ -350,38 +362,12 @@ void get_initial_moves(char colour, char** moves){
     }
 }
 
+
 int terrible_square_index_find(char column, char row){
-    int index;
-    switch (column) {
-    case 'A':
-	    index = (row - 49) * 8;
-	    break;
-    case 'B':
-	    index = (row - 49) * 8 + 1;
-	    break;
-    case 'C':
-	    index = (row - 49) * 8 + 2;
-	    break;
-    case 'D':
-	    index = (row - 49) * 8 + 3;
-	    break;
-    case 'E':
-	    index = (row - 49) * 8 + 4;
-	    break;
-    case 'F':
-	    index = (row - 49) * 8 + 5;
-	    break;
-    case 'G':
-	    index = (row - 49) * 8 + 6;
-	    break;
-    case 'H':
-	    index = (row - 49) * 8 + 7;
-	    break;
-    }
-    return index;
-
-
+    // Finds the index of a square in SQUARES array using its char/string name
+    return (row - 49) * 8 + column - 65;
 }
+
 
 char get_opponent(char colour) {
     // Returns opponent colour
@@ -391,63 +377,24 @@ char get_opponent(char colour) {
     return 'W';
 }
 
-// in 5 tests: it beat the randomkonaneplayer 5-0, 3 as black, 2 as white
-// need further tweaking still missing most optimal moves - Andre
- 
-void evaluate(uint64_t board, char colour, float* best_score) {
-    // Evaluation function based on mobility heuristic from Ernst (1995)
-    // Simple evaluation function that just counts number of moves available to each player and returns difference
-    int my_move_count = 0;
-    int opp_move_count = 0;
-    Move* my_moves;
-    Move* opp_moves;
-    
-    my_moves = malloc(MAX_MOVES*sizeof(Move));
-    get_all_moves(board, colour, my_moves, &my_move_count);
-    if (my_moves != NULL) {
-	    free(my_moves);
-    }
-    opp_moves = malloc(MAX_MOVES*sizeof(Move));
-    get_all_moves(board, get_opponent(colour), opp_moves, &opp_move_count);
-    if (opp_moves != NULL) {
-	    free(opp_moves);
-    }
 
-    if (colour == 'B') {
-    	if (!my_move_count) {
-		*best_score = -10000;
-		//fprintf(stderr, "score %f\n", *best_score);
-		return;
-	}
-	*best_score = (float)(my_move_count - opp_move_count);
-	return;
-    }
-    if (!my_move_count) {
-	*best_score = 10000;
-	return;
-    }
-    *best_score = (float)(opp_move_count - my_move_count);
-
-
-}
-
-// During testing hasnt missed a 3 jump yet, however still has missed 2 jumps
-// In some cases it does a 1 jump instead of a 1 jump leading to a 2 jump. However it could be the algorithmn seeing that the 1 jump has a better score than the 2 jump. 
-// Changed to output only best_score, best_move is saved in best_move pointer passed to func 
 Move minimax(uint64_t* board_ptr, char colour, int depth, float alpha, float beta, float* best_score) {
     Move* moves;
     int move_count = 0;
     Move best_move;
     Move move;
     float score = 0;
+    
     moves = malloc(MAX_MOVES*sizeof(Move));
-
     get_all_moves(*board_ptr, colour, moves, &move_count);
     // Base case - if depth is 0 or no moves available, evaluate the board
     if ((depth == 0) | (move_count == 0)) {
-        hely_evaluate(*board_ptr, colour, &score);
+        evaluate(*board_ptr, colour, &score);
         best_move.score = score;
-//	fprintf(stderr, "best move score %f\n", best_move.score);	
+	if (moves != NULL) {
+		free(moves);
+		moves = NULL;
+	}
 	return best_move;
     }
 
@@ -462,7 +409,6 @@ Move minimax(uint64_t* board_ptr, char colour, int depth, float alpha, float bet
             make_move(board_ptr, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
             // Update best score and move if this move is better
             if (move.score > *best_score) {
-	//    	fprintf(stderr, "move score %f best score %f for %c\n", move.score, *best_score, colour);
                 *best_score = move.score;
                 best_move.pc_ind = moves[i].pc_ind;
 		best_move.shift = moves[i].shift;
@@ -516,9 +462,9 @@ Move minimax(uint64_t* board_ptr, char colour, int depth, float alpha, float bet
 	moves = NULL;
     }
     best_move.score = *best_score;
-    //fprintf(stderr, "best move ind %d\n", best_move.pc_ind);
     return best_move;
 }
+
 
 void iterative_deepening(uint64_t* board_ptr, char colour, Move* best_move, int* move_found) {
     // Start the timer
@@ -533,23 +479,20 @@ void iterative_deepening(uint64_t* board_ptr, char colour, Move* best_move, int*
 
     // Keep searching deeper until we run out of time or we reach max depth
     while (depth <= MAX_DEPTH) {
-        // Check if we have enough time to search another depth
-	time(&end_time);
-        elapsed = difftime(end_time, start_time);
-        if (elapsed >= THINKING_TIME) {
-            break;
-	}
+    	// Check if we have enough time to search another depth
+    	time(&end_time);
+    	elapsed = difftime(end_time, start_time);
+    	if (elapsed >= THINKING_TIME) {
+        	return;
+    	}
         // Search at current depth
-	//move = malloc(sizeof(Move));
         move = minimax(board_ptr, colour, depth, -INFINITY, INFINITY, search_score);
-	//fprintf(stderr, "score at depth %d is %f\n", depth, move.score);
         if ((colour == 'B') && (move.score > best_black)) {
         // Only update best move if we found one
             best_move->pc_ind = move.pc_ind;
 	    best_move->shift = move.shift;
 	    best_move->jumps = move.jumps;
 	    best_black = move.score;
-       	  //  fprintf(stderr, "best move at depth %d is %d %d %d\n", depth, best_move->pc_ind, best_move->shift, best_move->jumps);
 	    *move_found = 1;
 	}
 	else if ((colour == 'W') && (move.score < best_white)) {
@@ -566,22 +509,20 @@ void iterative_deepening(uint64_t* board_ptr, char colour, Move* best_move, int*
 	    free(search_score);
 	    search_score = NULL;
     }
-    //fprintf(stderr, "end of iter\n");
-    //fprintf(stderr, "best move %d %d %d\n", best_move->pc_ind, best_move->shift, best_move->jumps);
 }
 
+
 void play_game(char* board, char colour) {
-    // Automatically plays game vs other agents using the drivercheck.pl script
-    
+    // Automatically plays game vs other agents using the drivercheck.pl script    
     int jumps;
     int start;
     int end;
     char* init_moves[3];
     int move_found = 0;
     char inp[7];
-    Move* moves = NULL; 
     Move* best_move = NULL;
     uint64_t bitboard = string_to_bitboard(board, COLOURS[0]) | string_to_bitboard(board, COLOURS[1]);
+
     if (is_initial_board(bitboard)){
         get_initial_moves(colour, init_moves);
 	start = terrible_square_index_find(init_moves[0][0], init_moves[0][1]);
@@ -624,164 +565,37 @@ void play_game(char* board, char colour) {
             make_move(&bitboard, start, 0, 0);
 	}
 
-    	//moves = malloc(20*sizeof(Move)); // Probably never have move than 20 moves available (probably closer to 10)
-        //get_all_moves(bitboard, colour, moves, &move_count);
-	//for(int i = 0; i < move_count; i++) {
-	//}
-        //if (move_count > 0){
-            //bitboard =  make_move(bitboard, moves[0].pc_ind, moves[0].shift, moves[0].jumps);
-            //print_move(moves[0]);
-	    best_move = malloc(sizeof(Move));
-	    move_found = 0; // flag whether move was found, if not end program
-            iterative_deepening(&bitboard, colour, best_move, &move_found);
-	    if (!move_found) {
-	        printf("Group A loses\n");
-	    	if (best_move != NULL) {
-	    	    free(best_move);
-	    	    best_move = NULL;
-	    	}
-            	break;
-	    }
+	best_move = malloc(sizeof(Move));
+        move_found = 0; // flag whether move was found, if not end program
+        iterative_deepening(&bitboard, colour, best_move, &move_found);
+	if (!move_found) {
+	    printf("Group A loses\n");
 	    if (best_move != NULL) {
-            	make_move(&bitboard, best_move->pc_ind, best_move->shift, best_move->jumps);
-            	print_move(*best_move);
-		free(best_move);
-		best_move = NULL;
+	    	free(best_move);
+	    	best_move = NULL;
 	    }
-	    /*if (moves != NULL) {
-	    free(moves);
-	    moves = NULL;
-	    }*/
-	//}
-	
+            break;
+	}
+	if (best_move != NULL) {
+            make_move(&bitboard, best_move->pc_ind, best_move->shift, best_move->jumps);
+            print_move(*best_move);
+	    free(best_move);
+	    best_move = NULL;
+	}
     }
 }
 
-// Testing new stuff
-/*
- * Will do this later
-class TranspositionTable():
-    def __init__(self, size=2**17):
-        self.size = size
-        self.table = [0] * self.size
-
-class ZobristNumbers():
-    def __init__(self):
-        min_rand = 0
-        max_rand = 2**64
-        self.rand_SQUARES = [0] * 64
-        for i in range(len(self.rand_SQUARES)):
-            self.rand_SQUARES[i] = random.randint(min_rand, max_rand)
-        self.rand_player = random.randint(min_rand, max_rand)
-
-class BitBoard():
-    def __init__(self, board, colour, zob_nums, zob_key=0):
-        self.board = board
-        self.colour = colour
-        self.zob_nums = zob_nums
-        self.zob_key = zob_key
-        self.zob_key = self.init_zobrist_key() if zob_key==0 else zob_key
-
-    def init_zobrist_key(self):
-        temp_board = self.board
-        key = 0
-        while temp_board:
-            next_square = lsb(temp_board)
-            key ^= self.zob_nums.rand_SQUARES[next_square]
-            temp_board &= ~(square_bb(next_square))
-
-        if self.colour == "B":
-            key ^= self.zob_numbs.rand_player
-
-        return key
-
-rows = [ROW_1, ROW_2, ROW_3, ROW_4, ROW_5, ROW_6, ROW_7, ROW_8]
-columns = [COLUMN_A, COLUMN_B, COLUMN_C, COLUMN_D, COLUMN_E, COLUMN_F, COLUMN_G, COLUMN_H]
-class Square():
-    def __init__(self, square_ind):
-        self.s = square_ind
-
-    def row_of(self):
-        return rows[self.s >> 3]
-
-    def column_of(self):
-        return columns[self.s & 7]
-
-class Magic():
-    def __init__(self, mask, shift, magic, offset=0):
-        self.mask = mask
-        self.shift = shift # should always be 12
-        self.magic = magic
-        # self.offset - offset
-
-def relevant_blockers(square):
-    # get bitboard of all squares that can be moved through/on by a piece in square
-    shifts = [1,-1,8,-8]
-    mask = square.row_of() | square.column_of()
-    if (rows.index(square.row_of()) + columns.index(square.column_of())) % 2 == 0:
-        print("black")
-        mask &= BLACK_SQUARES
-    else:
-        mask &= WHITE_SQUARES
-    print(rows.index(square.row_of()), columns.index(square.column_of()))
-
-    blockers = 0
-    print_board_with_colours(mask)
-    # laziest way possible to do this
-    # technically doesn't need to be efficient as long as it can be done in 10 secs at start
-    for shift in shifts:
-        landings, jumps = multi_jumps(mask, mask, square.s, shift)
-        print(landings)
-        for landing in landings:
-            blockers |= square_bb(landing)
-            blockers |= square_bb(landing - shift)
-
-    return blockers
-
-def subsets(bitboard):
-    # gets all subsets of a board, used to get all possible combinations of blockers for a mask
-    subsets = []
-    subset = 0
-    while subset != bitboard:
-        subsets.append(subset)
-        subset = (subset - bitboard) & bitboard
-        print(bin(subset))
-    return subsets
-
-subsets(COLUMN_A)
-square = Square(1)
-blockers = relevant_blockers(square)
-print_board(blockers)
-def find_magics():
-    # magic numbers allow us to generate random hash value to get possible attacks and
-    # map each possible blocker layout for each square to a table
-    for i in range(len(SQUARES)):
-        mask = relevant_blockers(Square(i))
-
-find_magics()
-	*/
 
 // ================== Heuristic Evaluation
 // Plan: move-count (mobility), safe moves (combinatorial game theory),
 // and shape-based evaluation (Ernst 1995, Uiterwijk 2022).
 
-int popcount(uint64_t board) {
-	// counts number of 1s in bitboard
-	int count = 0;
-	uint64_t temp = board;
-	while (temp) {
-		temp ^= square_bb(lsb(temp));
-		count++;
-	}
-	return count;
-}
+
 int count_pieces(uint64_t board, char colour) {
     if (colour == 'B') {
         return popcount(board & BLACK_SQUARES);
-    }
- 
+    } 
     return popcount(board & WHITE_SQUARES);
-    
 }
 
 
@@ -791,7 +605,8 @@ int count_pieces(uint64_t board, char colour) {
 // moving the piece we intend to jump (our target at `mid`) away before we act.
 // We simulate every opponent reply and check that our first jump is still legal.
 
-int count_safe_moves(uint64_t board, char colour, Move* my_moves, Move* opp_moves, int my_count, int opp_count) {
+
+int count_safe_moves(uint64_t board, Move* my_moves, Move* opp_moves, int my_count, int opp_count) {
     if (opp_count == 0) {
         return my_count;   // nothing opponent can do — all moves are safe
     }
@@ -823,8 +638,8 @@ int count_safe_moves(uint64_t board, char colour, Move* my_moves, Move* opp_move
             our_piece_gone  =    !((board >> start) & 1);
             mid_piece_gone  =    !((board >> mid)   & 1);
             end_now_blocked =      (board >> end)   & 1;
-            // undo move
-	    make_move(&board, opp_moves[j].pc_ind, opp_moves[j].shift, opp_moves[j].jumps);
+	    make_move(&board, opp_moves[j].pc_ind, opp_moves[j].shift, opp_moves[j].jumps); // undoes move
+											    
             if (our_piece_gone || mid_piece_gone || end_now_blocked) {
                 is_safe = 0;
                 break;
@@ -852,9 +667,8 @@ int count_safe_moves(uint64_t board, char colour, Move* my_moves, Move* opp_move
 // We reward having fewer dead pieces than the opponent and more contested pieces.
 
 
-int classify_pieces(uint64_t board, char colour) {
-    
-    //Returns (dead_count, contested_count) for `colour`.
+int classify_pieces(uint64_t board, char colour) {    
+    //Returns difference between contested and dead for `colour`.
     //A piece is dead if it has no opponent neighbour in any of the 4 directions.
     
     uint64_t my_bb;
@@ -898,20 +712,23 @@ int classify_pieces(uint64_t board, char colour) {
     return contested - dead;
     }
 
+
 int shape_score(uint64_t board, char colour) {
     
     // Shape advantage = (opp_dead - my_dead) + (my_contested - opp_contested).
     // More dead opponent pieces and more of our own pieces in battle zones = better.
     
     char opp_colour = get_opponent(colour);
-    int my_score  = classify_pieces(board, colour); // TODO check this works
+    int my_score  = classify_pieces(board, colour);
     int opp_score = classify_pieces(board, opp_colour);
     return my_score - opp_score;
 }
 
+
 // ---- Combined evaluator ---------------------------------------------------
 
-void hely_evaluate(uint64_t board, char colour, float* score) {
+
+void evaluate(uint64_t board, char colour, float* score) {
     /*
     Heuristic score from `colour`'s perspective (higher = better).
 
@@ -942,12 +759,7 @@ void hely_evaluate(uint64_t board, char colour, float* score) {
 	*score = 10000;
 	return;
     }
-    /*
-    if (!opp_move_count) {
-        *score = 10000;
-	return;
-    }
-    */
+
     // --- Mobility ---
     int mobility = my_move_count - opp_move_count;
 
@@ -963,8 +775,8 @@ void hely_evaluate(uint64_t board, char colour, float* score) {
     int depth = my_jumps - opp_jumps;
 
     // --- Safe moves ---
-    int my_safe  = count_safe_moves(board, colour,     my_moves,  opp_moves, my_move_count, opp_move_count);
-    int opp_safe = count_safe_moves(board, opp_colour, opp_moves, my_moves, opp_move_count, my_move_count);
+    int my_safe  = count_safe_moves(board, my_moves,  opp_moves, my_move_count, opp_move_count);
+    int opp_safe = count_safe_moves(board, opp_moves, my_moves, opp_move_count, my_move_count);
     int safe = my_safe - opp_safe;
 
     // --- Shape (Ernst/Uiterwijk) ---
@@ -991,42 +803,3 @@ void hely_evaluate(uint64_t board, char colour, float* score) {
 	    *score = *score * -1;
     }
 }
-
-// Not sure if we need this
-/*
-Move choose_best_move(uint64_t board, char colour){
-    
-    //Greedy one-ply lookahead using `evaluate`.
-    //Simulates every legal move, scores the resulting board, returns the best.
-    
-    int score;
-    int move_count;
-    Move* moves = malloc(MAX_MOVES * sizeof(Move));
-    get_all_moves(board, colour, moves, &move_count);
-    if (move_count == 0) {
-	if (moves != NULL) {
-		free(moves);
-		moves = NULL;
-	}
-        return -1;
-    }
-    Move best_move  = moves[0];
-    float best_score = -INFINITY;
-
-    for (int i = 0; i < move_count; i++) {
-        make_move(&board, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
-        score = hely_evaluate(board, colour);
-	// second make_move undoes move
-        make_move(&board, moves[i].pc_ind, moves[i].shift, moves[i].jumps);
-        if (score > best_score) {
-            best_score = score;
-            best_move  = moves[i];
-	}
-    }
-    if (moves != NULL) {
-	    free(moves);
-	    moves = NULL;
-    }
-    return best_move;
-}
-*/

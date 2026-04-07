@@ -12,12 +12,13 @@ extern const char COLOURS[2];
 // DeBrujin numbers for finding least significant bit
 extern const int DB_INDEX[64];
 
-#define THINKING_TIME 10
+#define THINKING_TIME 5
 // size of move arrays
 #define MAX_MOVES 30
 
 // max depth of iterative deepening, probably won't come close to this but stops any weirdness hopefully 
-#define MAX_DEPTH 30
+#define MAX_DEPTH 7
+
 // Location of all squares that can have white pieces
 // Can get all black pieces on a board by using &
 #define WHITE_SQUARES 0xAA55AA55AA55AA55ULL
@@ -27,7 +28,6 @@ extern const int DB_INDEX[64];
 
 // The squares in each row starting from bottom
 // Can be used to get pieces in a specific row on a board using &
-// Or ignore pieces on that row using & ~row
 #define ROW_1 0xFFULL
 #define ROW_2 (ROW_1 << 8)
 #define ROW_3 (ROW_1 << 8*2)
@@ -50,11 +50,11 @@ extern const int DB_INDEX[64];
 // Name of every square sorted by its index position on bitboard
 extern const char* SQUARES[64];
 
+// Move type
 typedef struct {
     int pc_ind;
     int shift;
     int jumps;
-    // flag to show this move leads to a loss
     float score;
 
 } Move; 
@@ -77,16 +77,14 @@ int is_initial_board(uint64_t);
 void get_initial_moves(char, char**);
 int terrible_square_index_find(char, char);
 char get_opponent(char);
-void evaluate(uint64_t, char, float*);
 Move minimax(uint64_t*, char, int, float, float, float*);
 void iterative_deepening(uint64_t*, char, Move*, int*);
 int popcount(uint64_t);
 int count_pieces(uint64_t, char);
-int count_safe_moves(uint64_t, char, Move*, Move*, int, int);
+int count_safe_moves(uint64_t, Move*, Move*, int, int);
 int classify_pieces(uint64_t, char);
 int shape_score(uint64_t, char);
-void hely_evaluate(uint64_t, char, float*); // Hely eval
-// Move choose_best_move(uint64_t, char);
+void evaluate(uint64_t, char, float*);
 void play_game(char*, char);
 
 #endif
