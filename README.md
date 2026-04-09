@@ -11,7 +11,7 @@ This program implements a Konane game playing agent which uses an iterative deep
 
 
 ## Requirements
-- **C99**
+- **C99** **gcc-13**
 
 ## How to Compile (Build)
 
@@ -30,7 +30,7 @@ The program accepts a text file containing a string representation of a Konane b
 
 **Syntax:**
 
-./konaneplayer_grpA <board_file> <colour>
+./konaneplayer_grpA {board_file} {colour}
 
 **Example:**
 ./konaneplayer_grpA Sample.txt B
